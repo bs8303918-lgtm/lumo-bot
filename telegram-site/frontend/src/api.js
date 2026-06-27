@@ -1,6 +1,22 @@
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const API = API_BASE ? `${API_BASE}/api` : '/api';
 
+async function readJsonResponse(res) {
+  const text = await res.text();
+  if (!text.trim()) return {};
+  const looksHtml = text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html');
+  if (looksHtml) {
+    throw new Error(
+      'Mini App получил HTML вместо JSON. На Vercel задай VITE_API_URL=https://твой-проект.up.railway.app (Production), затем Redeploy.'
+    );
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Ответ API не JSON (HTTP ${res.status})`);
+  }
+}
+
 export function getTelegram() {
   return window.Telegram?.WebApp ?? null;
 }
@@ -18,6 +34,12 @@ export function apiHeaders() {
 }
 
 export async function apiFetch(path, options = {}) {
+  if (!API_BASE && import.meta.env.PROD) {
+    throw new Error(
+      'VITE_API_URL не задан на Vercel. Variables → VITE_API_URL = URL Railway → Redeploy.'
+    );
+  }
+
   let res;
   try {
     res = await fetch(`${API}${path}`, {
@@ -29,8 +51,8 @@ export async function apiFetch(path, options = {}) {
       'Не удалось связаться с API. Проверь, что бэкенд (Railway) запущен и VITE_API_URL указан верно.'
     );
   }
+  const data = await readJsonResponse(res);
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
     if (res.status === 530) {
       throw new Error(
         'API недоступен. Проверь Railway и переменную VITE_API_URL на Vercel.'
@@ -38,7 +60,7 @@ export async function apiFetch(path, options = {}) {
     }
     throw new Error(data.detail || `HTTP ${res.status}`);
   }
-  return res.json();
+  return data;
 }
 
 export function initTelegramApp() {

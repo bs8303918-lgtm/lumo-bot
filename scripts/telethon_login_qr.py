@@ -17,19 +17,26 @@ QR_PATH = Path(__file__).resolve().parent.parent / "telethon_qr.png"
 
 
 def show_qr(url: str) -> None:
+    qr = qrcode.QRCode(border=1)
+    qr.add_data(url)
+    qr.make(fit=True)
+
     img = qrcode.make(url)
     img.save(QR_PATH)
     print(f"\nQR-код сохранён: {QR_PATH}")
-    try:
-        os.startfile(QR_PATH)  # Windows: открыть картинку
-        print("Картинка открыта автоматически.")
-    except OSError:
-        print("Картинка недоступна (Railway Shell / Linux) — QR в терминале ниже:")
-        qr = qrcode.QRCode(border=1)
-        qr.add_data(url)
-        qr.make(fit=True)
-        qr.print_ascii(invert=True)
-        print("Или скопируйте tg:// ссылку ниже в https://www.qr-code-generator.com/")
+
+    open_file = getattr(os, "startfile", None)
+    if open_file is not None:
+        try:
+            open_file(QR_PATH)
+            print("Картинка открыта автоматически.")
+            return
+        except OSError:
+            pass
+
+    print("Сканируй QR ниже (Railway Shell) или используй tg:// ссылку:")
+    qr.print_ascii(invert=True)
+    print("Или вставь tg:// ссылку на https://www.qr-code-generator.com/")
 
 
 async def main() -> None:
