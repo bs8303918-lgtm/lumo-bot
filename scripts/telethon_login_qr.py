@@ -29,8 +29,18 @@ def show_qr(url: str) -> None:
 
 async def main() -> None:
     settings = get_settings()
-    if not settings.telegram_api_id or not settings.telegram_api_hash:
-        print("Ошибка: заполните TELEGRAM_API_ID и TELEGRAM_API_HASH в .env")
+    api_hash = (settings.telegram_api_hash or "").strip()
+    if not settings.telegram_api_id or not api_hash:
+        print("Ошибка: TELEGRAM_API_ID и TELEGRAM_API_HASH не найдены.")
+        print(f"  telegram_api_id = {settings.telegram_api_id!r}")
+        print(f"  TELEGRAM_API_ID (env) = {os.environ.get('TELEGRAM_API_ID')!r}")
+        print(f"  TELEGRAM_API_HASH (env) = {'задан' if os.environ.get('TELEGRAM_API_HASH') else 'НЕТ'}")
+        print(
+            "\nRailway: Variables должны быть у сервиса lumo-bot "
+            "(имена TELEGRAM_API_ID и TELEGRAM_API_HASH), затем Redeploy."
+        )
+        print("Shell открывай только когда деплой Online (не FAILED).")
+        print("Локально: те же ключи в .env рядом с main.py")
         return
 
     reset_client()
