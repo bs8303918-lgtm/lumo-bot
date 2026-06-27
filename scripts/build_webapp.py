@@ -60,7 +60,7 @@ def build_webapp(*, force: bool = False) -> bool:
         return False
 
     logger.info("Building Lumo Mini App...")
-    env = {**os.environ, "VITE_BASE": "/app/"}
+    env = {**os.environ, "VITE_BASE_PATH": os.environ.get("VITE_BASE_PATH", "/app/")}
 
     if not (FRONTEND_DIR / "node_modules").is_dir():
         install = subprocess.run(

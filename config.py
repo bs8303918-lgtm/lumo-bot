@@ -99,6 +99,7 @@ class Settings(BaseSettings):
     api_allow_dev_auth: bool = False
     api_enabled: bool = True
     auto_build_webapp: bool = True
+    serve_mini_app: bool = True
     public_base_url: str = ""
     telegram_bot_username: str = "LumoAI1bot"
     telegram_webapp_url: str = ""
@@ -215,6 +216,8 @@ class Settings(BaseSettings):
         if text not in ("full", "worker", "bot"):
             return "full"
         return text
+
+    @field_validator("gemini_model", mode="before")
     @classmethod
     def sanitize_gemini_model(cls, value: Any) -> str:
         if not value:

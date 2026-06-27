@@ -166,7 +166,7 @@ async def main() -> None:
         seeded = await seed_channels_from_file()
         logger.info("Seed channels loaded: %d", seeded)
 
-        if settings.auto_build_webapp:
+        if settings.auto_build_webapp and settings.serve_mini_app:
             ensure_webapp_built()
 
         tasks: list = []

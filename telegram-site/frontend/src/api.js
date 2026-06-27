@@ -26,14 +26,14 @@ export async function apiFetch(path, options = {}) {
     });
   } catch {
     throw new Error(
-      'Не удалось связаться с сервером. Запусти бота и cloudflared на ПК, затем обнови Mini App.'
+      'Не удалось связаться с API. Проверь, что бэкенд (Railway) запущен и VITE_API_URL указан верно.'
     );
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     if (res.status === 530) {
       throw new Error(
-        'Сервер недоступен снаружи. Запусти бота и cloudflared на ПК, затем обнови Mini App.'
+        'API недоступен. Проверь Railway и переменную VITE_API_URL на Vercel.'
       );
     }
     throw new Error(data.detail || `HTTP ${res.status}`);

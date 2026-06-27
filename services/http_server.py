@@ -30,8 +30,9 @@ async def run_api_server() -> None:
     )
     server = uvicorn.Server(config)
     logger.info(
-        "API + Mini App on http://%s:%s  (app: /app/  api: /api/)",
+        "API on http://%s:%s  (api: /api/%s)",
         settings.api_host,
         port,
+        " mini-app: /app/" if settings.serve_mini_app else "",
     )
     await server.serve()

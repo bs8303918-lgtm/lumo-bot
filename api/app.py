@@ -63,11 +63,16 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     async def root() -> RedirectResponse:
-        return RedirectResponse(url="/app/", status_code=302)
+        if settings.serve_mini_app:
+            mini_app_dist = BASE_DIR / "telegram-site" / "frontend" / "dist"
+            if mini_app_dist.is_dir():
+                return RedirectResponse(url="/app/", status_code=302)
+        return RedirectResponse(url="/api/health", status_code=302)
 
-    mini_app_dist = BASE_DIR / "telegram-site" / "frontend" / "dist"
-    if mini_app_dist.is_dir():
-        app.mount("/app", StaticFiles(directory=mini_app_dist, html=True), name="mini-app")
+    if settings.serve_mini_app:
+        mini_app_dist = BASE_DIR / "telegram-site" / "frontend" / "dist"
+        if mini_app_dist.is_dir():
+            app.mount("/app", StaticFiles(directory=mini_app_dist, html=True), name="mini-app")
 
     return app
 
