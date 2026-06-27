@@ -18,12 +18,9 @@ export default function CatalogView({ onOpenItem }) {
   const [addOpen, setAddOpen] = useState(false);
   const loadMoreRef = useRef(null);
   const requestIdRef = useRef(0);
+  const bootstrappedRef = useRef(false);
 
-  useEffect(() => {
-    apiFetch('/lumo/categories').then(setCategories).catch(() => {});
-  }, []);
-
-  const fetchPage = useCallback(async (offset, append) => {
+  const fetchPage = useCallback(async (offset, append, category = activeCategory, query = searchQuery) => {
     const requestId = ++requestIdRef.current;
     if (append) setLoadingMore(true);
     else setLoading(true);
@@ -31,8 +28,8 @@ export default function CatalogView({ onOpenItem }) {
     const params = new URLSearchParams();
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
-    if (activeCategory !== 'all') params.set('category', activeCategory);
-    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    if (category !== 'all') params.set('category', category);
+    if (query.trim()) params.set('q', query.trim());
 
     try {
       const data = await apiFetch(`/lumo/opportunities?${params}`);
@@ -58,11 +55,49 @@ export default function CatalogView({ onOpenItem }) {
   }, [activeCategory, searchQuery]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      setLoading(true);
+      try {
+        const data = await apiFetch(`/lumo/catalog-bootstrap?limit=${PAGE_SIZE}`);
+        if (cancelled) return;
+        setCategories(data.categories || []);
+        setItems(data.items || []);
+        setTotal(data.total ?? 0);
+        setHasMore(Boolean(data.hasMore));
+        bootstrappedRef.current = true;
+      } catch {
+        if (!cancelled) {
+          try {
+            const cats = await apiFetch('/lumo/categories');
+            if (!cancelled) setCategories(cats);
+          } catch {
+            /* ignore */
+          }
+          await fetchPage(0, false, 'all', '');
+          bootstrappedRef.current = true;
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!bootstrappedRef.current) return undefined;
+    if (activeCategory === 'all' && !searchQuery.trim()) return undefined;
     const timer = setTimeout(() => {
       fetchPage(0, false);
-    }, 200);
+    }, 120);
     return () => clearTimeout(timer);
-  }, [fetchPage]);
+  }, [activeCategory, searchQuery, fetchPage]);
 
   useEffect(() => {
     const node = loadMoreRef.current;

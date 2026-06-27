@@ -126,7 +126,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
             className="text-[12px] font-semibold mt-2 underline"
             style={{ color: 'var(--lumo-link)' }}
           >
-            Смотреть тарифы →
+            Смотреть Price →
           </button>
         )}
       </header>

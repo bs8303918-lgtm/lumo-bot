@@ -89,6 +89,7 @@ export default function App() {
     apiFetch('/lumo/subscription-plans')
       .then((data) => setPlans(data.plans || []))
       .catch(() => {});
+    apiFetch('/lumo/catalog-bootstrap?limit=20').catch(() => {});
     loadProfile();
   }, [loadProfile]);
 
@@ -122,9 +123,9 @@ export default function App() {
     }
   }, [dark]);
 
-  const openItem = async (item) => {
+  const openItem = (item) => {
     haptic('light');
-    setSelected(await apiFetch(`/lumo/opportunities/${item.id}`));
+    setSelected(item);
   };
 
   const closeApp = () => {

@@ -12,6 +12,7 @@ from services.catalog_dedup import catalog_dedupe_keys
 from services.catalog_freshness import is_unknown_deadline, message_posted_at
 from services.interest_matcher import (
     CATEGORY_DISPLAY,
+    OPPORTUNITY_TYPES,
     entry_all_tags,
     extract_categories_from_text,
     relevance_score,
@@ -127,7 +128,7 @@ def category_chips(categories: list[str]) -> list[dict]:
     return chips
 
 
-MATCH_MIN_SCORE = 3.0
+MATCH_MIN_SCORE = 2.0
 
 SEARCH_SUGGESTIONS = [
     {"emoji": "🚀", "text": "Я стартапер. Ищу питчи, хакатоны и гранты для стартапов в Казахстане"},
@@ -159,10 +160,12 @@ def match_opportunities_for_user(
     items: list[CatalogOpportunity],
     *,
     limit: int = 12,
+    min_score: float | None = None,
 ) -> tuple[list[dict], list[str]]:
     text = interest_query.strip()
     categories = extract_categories_from_text(text)
     unique = dedupe_opportunities(items)
+    floor = min_score if min_score is not None else MATCH_MIN_SCORE
 
     scored: list[tuple[float, CatalogOpportunity]] = []
     for entry in unique:
@@ -170,7 +173,16 @@ def match_opportunities_for_user(
         scored.append((score, entry))
     scored.sort(key=lambda pair: (pair[0], not is_unknown_deadline(pair[1].deadline)), reverse=True)
 
-    picked = [entry for score, entry in scored if score >= MATCH_MIN_SCORE][:limit]
+    picked = [entry for score, entry in scored if score >= floor][:limit]
+    if not picked:
+        intent = [c for c in categories if c in OPPORTUNITY_TYPES]
+        if intent:
+            wanted = set(intent)
+            for _, entry in scored:
+                if entry.opportunity_type in wanted or wanted & set(entry_all_tags(entry)):
+                    picked.append(entry)
+                    if len(picked) >= limit:
+                        break
     return [serialize_opportunity(entry) for entry in picked], categories
 
 

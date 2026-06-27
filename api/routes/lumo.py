@@ -18,7 +18,7 @@ from db.repositories.opportunity_catalog import (
 from db.repositories.users import MatchRepository, MessageRepository, SystemStateRepository, UserRepository
 from db.repositories.users import EventRepository
 from services.ai_search_limit import ai_search_usage, enforce_ai_search_limit
-from services.interest_matcher import entry_all_tags, resolve_catalog_types
+from services.interest_matcher import entry_all_tags, extract_categories_from_text, resolve_catalog_types
 from services.opportunity_catalog import catalog_repo
 from services.subscription import public_plans, subscription_status
 from bot.background import schedule_interest_llm_refine
@@ -54,11 +54,13 @@ async def _persist_interest(
     text: str,
     *,
     skip_llm: bool = False,
+    reset_llm_queue: bool = True,
 ) -> list[str]:
-    await MatchRepository(session).clear_processed_for_user(user.id)
-    max_raw_id = await MessageRepository(session).get_max_raw_message_id()
-    await SystemStateRepository(session).set_llm_min_raw_id(user.id, max_raw_id)
-    await session.commit()
+    if reset_llm_queue and (user.interest_query or "").strip() != text.strip():
+        await MatchRepository(session).clear_processed_for_user(user.id)
+        max_raw_id = await MessageRepository(session).get_max_raw_message_id()
+        await SystemStateRepository(session).set_llm_min_raw_id(user.id, max_raw_id)
+        await session.commit()
     from services.interest_admin_review import save_user_interest_profile
 
     profile = await save_user_interest_profile(
@@ -173,18 +175,26 @@ async def set_interest(
 
     await enforce_ai_search_limit(session, user.id, telegram_id=user.telegram_id)
 
-    settings = get_settings()
-    categories = await _persist_interest(session, user, text, skip_llm=True)
-    schedule_interest_llm_refine(user.id, text)
+    interest_changed = (user.interest_query or "").strip() != text
+    if interest_changed:
+        categories = await _persist_interest(session, user, text, skip_llm=True)
+        schedule_interest_llm_refine(user.id, text)
+    else:
+        categories = (
+            parse_interest_categories(user.interest_categories_json)
+            or extract_categories_from_text(text)
+        )
+
     await EventRepository(session).log(AI_SEARCH, user_id=user.id, metadata={"saved": True})
     await session.commit()
     catalog_repo_inst = catalog_repo(session)
     catalog_count = await catalog_repo_inst.count_active_for_user(user.id)
 
+    search_types = resolve_catalog_types(extract_categories_from_text(text))
     items, matched_categories = match_opportunities_for_user(
         text,
         await catalog_repo_inst.get_active_for_user(
-            user.id, resolve_catalog_types(categories), limit=80
+            user.id, search_types, limit=120
         ),
         limit=12,
     )
@@ -225,6 +235,31 @@ async def lumo_categories(
     return build_category_list(counts, total_entries=total)
 
 
+@router.get("/lumo/catalog-bootstrap")
+async def lumo_catalog_bootstrap(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=50),
+) -> dict:
+    """Categories + first catalog page in one request (faster Mini App load)."""
+    repo = catalog_repo(session)
+    counts = await repo.count_active_by_type_for_user(user.id)
+    total = await repo.count_active_for_user(user.id)
+    categories = build_category_list(counts, total_entries=total)
+    items_raw = await repo.get_active_for_user(user.id, ALL_TYPES, limit=max(limit * 3, 60))
+    unique = dedupe_opportunities(items_raw)
+    sorted_items = sort_opportunities_by_deadline(unique)
+    page = sorted_items[:limit]
+    return {
+        "categories": categories,
+        "items": [serialize_opportunity(e) for e in page],
+        "total": len(sorted_items),
+        "offset": 0,
+        "limit": limit,
+        "hasMore": len(sorted_items) > limit,
+    }
+
+
 @router.get("/lumo/opportunities")
 async def lumo_opportunities(
     category: str | None = Query(default=None),
@@ -236,7 +271,8 @@ async def lumo_opportunities(
 ) -> dict:
     repo = catalog_repo(session)
     types = ALL_TYPES if not category or category == "all" else [category]
-    items = await repo.list_all_active_for_user(user.id, types)
+    fetch_cap = min(max(limit + offset + limit, 60), 300)
+    items = await repo.get_active_for_user(user.id, types, limit=fetch_cap)
     unique = dedupe_opportunities(items)
 
     if q:

@@ -367,6 +367,16 @@ def resolve_catalog_types(categories: list[str]) -> list[str]:
     return [t for t in OPPORTUNITY_TYPES if t != "другое"]
 
 
+def _token_matches_blob(token: str, blob: str) -> bool:
+    if token in blob:
+        return True
+    if len(token) >= 5 and token.endswith(("ы", "и", "а", "я", "е", "о", "у", "ю")):
+        stem = token[:-1]
+        if len(stem) >= 4 and stem in blob:
+            return True
+    return False
+
+
 def _topic_aliases(token: str) -> tuple[str, ...]:
     return (token.lower(),) + _TOPIC_ALIASES.get(token.lower(), ())
 
@@ -463,7 +473,7 @@ def relevance_score(
     score = 0.0
     matched = False
     for token in tokens:
-        if token in blob:
+        if _token_matches_blob(token, blob):
             score += 2.0 if len(token) >= 5 else 1.0
             matched = True
             continue
@@ -478,9 +488,12 @@ def relevance_score(
     domains = [c for c in categories if is_domain_category(c)]
     entry_tags = set(entry_all_tags(entry))
     if standard and entry_tags & set(standard):
-        score += 2.0
+        score += 3.0
     elif categories and entry_tags & set(categories):
-        score += 1.5
+        score += 2.0
+
+    if standard and (entry.opportunity_type in standard or entry_tags & set(standard)):
+        score = max(score, 3.5)
 
     if domains:
         domain_blob = blob

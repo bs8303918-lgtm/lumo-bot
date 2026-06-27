@@ -64,7 +64,7 @@ def _postgres_timeouts(dbapi_connection, _connection_record) -> None:
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("SET statement_timeout = '60s'")
-        cursor.execute("SET lock_timeout = '15s'")
+        cursor.execute("SET lock_timeout = '30s'")
     finally:
         cursor.close()
 
