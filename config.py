@@ -106,9 +106,30 @@ class Settings(BaseSettings):
     community_telegram_handle: str = "Lumo Community"
     community_telegram_url: str = "https://t.me/+hA0CwgbStLI0MGRi"
 
+    # full = bot + worker (local dev); worker = Railway (API/monitor/LLM); bot = polling only (local)
+    lumo_mode: str = "full"
+    skip_instance_lock: bool = False
+    telethon_session_path: str = ""
+
     @property
-    def telethon_session_path(self) -> Path:
+    def resolved_telethon_session_path(self) -> Path:
+        if self.telethon_session_path.strip():
+            return Path(self.telethon_session_path.strip())
         return BASE_DIR / self.telethon_session_name
+
+    @property
+    def is_worker(self) -> bool:
+        return self.lumo_mode.lower() in ("worker", "full")
+
+    @property
+    def is_bot_polling(self) -> bool:
+        return self.lumo_mode.lower() in ("bot", "full")
+
+    @property
+    def is_railway(self) -> bool:
+        import os
+
+        return bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
 
     @property
     def is_sqlite(self) -> bool:
@@ -176,7 +197,9 @@ class Settings(BaseSettings):
     @field_validator("database_url", mode="after")
     @classmethod
     def resolve_database_url(cls, value: str) -> str:
-        if value.startswith("postgresql://") and "+asyncpg" not in value:
+        if value.startswith("postgres://"):
+            value = value.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif value.startswith("postgresql://") and "+asyncpg" not in value:
             value = value.replace("postgresql://", "postgresql+asyncpg://", 1)
         relative_prefix = "sqlite+aiosqlite:///./"
         if value.startswith(relative_prefix):
@@ -185,7 +208,13 @@ class Settings(BaseSettings):
             return f"sqlite+aiosqlite:///{abs_path.as_posix()}"
         return value
 
-    @field_validator("gemini_model", mode="before")
+    @field_validator("lumo_mode", mode="before")
+    @classmethod
+    def normalize_lumo_mode(cls, value: Any) -> str:
+        text = str(value or "full").strip().lower()
+        if text not in ("full", "worker", "bot"):
+            return "full"
+        return text
     @classmethod
     def sanitize_gemini_model(cls, value: Any) -> str:
         if not value:

@@ -13,7 +13,7 @@ from monitor.retry import run_with_retry
 from monitor.worker import MonitorWorker
 from services.channel_service import seed_channels_from_file
 from services.notification_service import NotificationService
-from bot.webapp_setup import setup_telegram_webapp
+from bot.webapp_setup import setup_telegram_webapp, sync_user_menu_button
 from scripts.build_webapp import ensure_webapp_built
 from services.http_server import run_api_server
 from utils.instance_lock import acquire_instance_lock, release_instance_lock
@@ -133,13 +133,34 @@ async def _on_monitor_critical(exc: Exception) -> None:
     await notify_admin(f"🚨 Lumo: воркер мониторинга не восстановился: {exc}")
 
 
+async def _setup_webapp(bot) -> None:
+    settings = get_settings()
+    await setup_telegram_webapp(bot)
+    if settings.telegram_admin_chat_id:
+        await sync_user_menu_button(bot, settings.telegram_admin_chat_id)
+    url = settings.resolved_webapp_url
+    if url:
+        logger.info("Mini App URL: %s", url)
+    elif settings.is_bot_polling:
+        logger.warning(
+            "Mini App URL не задан — кнопка Open не появится. "
+            "Укажи PUBLIC_BASE_URL (Railway domain) в переменных окружения."
+        )
+
+
 async def main() -> None:
     setup_logging()
-    acquire_instance_lock()
     settings = get_settings()
-    logger.info("Starting Lumo bot...")
+    mode = settings.lumo_mode.lower()
+    use_lock = mode == "full" and not settings.skip_instance_lock and not settings.is_railway
+
+    if use_lock:
+        acquire_instance_lock()
+
+    logger.info("Starting Lumo (mode=%s)...", mode)
     logger.info("LLM provider: %s, model: %s", settings.llm_provider, settings.llm_model_name)
 
+    bot = None
     try:
         await init_database()
         seeded = await seed_channels_from_file()
@@ -148,33 +169,36 @@ async def main() -> None:
         if settings.auto_build_webapp:
             ensure_webapp_built()
 
-        bot = create_bot()
-        from bot.webapp_setup import sync_user_menu_button, setup_telegram_webapp
+        tasks: list = []
 
-        await setup_telegram_webapp(bot)
-        if settings.telegram_admin_chat_id:
-            await sync_user_menu_button(bot, settings.telegram_admin_chat_id)
-        url = settings.resolved_webapp_url
-        if url:
-            logger.info("Mini App URL: %s", url)
-        else:
-            logger.warning(
-                "Mini App URL не задан — кнопка Open не появится. "
-                "Запусти scripts\\setup_tunnel.ps1 и добавь PUBLIC_BASE_URL в .env"
+        if settings.is_worker:
+            tasks.extend(
+                [
+                    run_monitor(),
+                    run_llm_processor(),
+                    run_api_server(),
+                    run_posted_at_backfill(),
+                ]
             )
-        try:
-            await asyncio.gather(
-                run_bot(bot),
-                run_monitor(),
-                run_llm_processor(),
-                run_api_server(),
-                run_posted_at_backfill(),
-            )
-        finally:
-            await LLMClient.close_http()
-            await close_bot()
+
+        if settings.is_bot_polling:
+            bot = create_bot()
+            await _setup_webapp(bot)
+            tasks.append(run_bot(bot))
+        elif settings.telegram_bot_token:
+            bot = create_bot()
+            await _setup_webapp(bot)
+
+        if not tasks:
+            raise SystemExit("Nothing to run — set LUMO_MODE to full, worker, or bot")
+
+        await asyncio.gather(*tasks)
     finally:
-        release_instance_lock()
+        await LLMClient.close_http()
+        if bot is not None:
+            await close_bot()
+        if use_lock:
+            release_instance_lock()
 
 
 if __name__ == "__main__":

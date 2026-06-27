@@ -9,9 +9,9 @@ from config import get_settings
 
 def main() -> None:
     settings = get_settings()
-    base = settings.telethon_session_path
+    base = settings.resolved_telethon_session_path
     removed = []
-    for path in [Path(f"{base}.session"), Path(f"{base}.session-journal")]:
+    for path in [Path(f"{base}.session"), Path(f"{base}.session-journal"), base.with_suffix(".session"), base.with_suffix(".session-journal")]:
         if path.exists():
             path.unlink()
             removed.append(path.name)

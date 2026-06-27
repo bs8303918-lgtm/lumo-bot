@@ -17,7 +17,7 @@ def get_telethon_client() -> TelegramClient:
     if _client is None:
         settings = get_settings()
         _client = TelegramClient(
-            str(settings.telethon_session_path),
+            str(settings.resolved_telethon_session_path),
             settings.telegram_api_id,
             settings.telegram_api_hash,
         )
