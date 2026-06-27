@@ -146,8 +146,10 @@ class Settings(BaseSettings):
 
     @property
     def resolved_webapp_url(self) -> str:
-        explicit = (self.telegram_webapp_url or "").strip()
-        base = explicit.rstrip("/") if explicit else (self.public_base_url or "").strip().rstrip("/")
+        explicit = (self.telegram_webapp_url or "").strip().rstrip("/")
+        if explicit:
+            return f"{explicit}/?v={webapp_cache_bust()}"
+        base = (self.public_base_url or "").strip().rstrip("/")
         if not base:
             return ""
         if not base.endswith("/app"):
