@@ -3,5 +3,9 @@
   "buildCommand": "cd telegram-site/frontend && npm ci && npm run build",
   "outputDirectory": "telegram-site/frontend/dist",
   "installCommand": "cd telegram-site/frontend && npm ci",
-  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }],
+  "env": {
+    "VITE_API_URL": "https://lumo-bot-production-9903.up.railway.app",
+    "VITE_BASE_PATH": "/"
+  }
 }
