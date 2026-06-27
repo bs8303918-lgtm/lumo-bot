@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     telegram_api_hash: str = ""
     telegram_phone: str = ""
     telethon_session_name: str = "lumo_session"
-
-    # Database
+    # Railway: строка сессии (переживает redeploy без Volume). Получить: python scripts/export_telethon_session.py
+    telethon_session_string: str = ""
     database_url: str = f"sqlite+aiosqlite:///{(BASE_DIR / 'lumo.db').as_posix()}"
 
     # LLM — gemini (Google) или openai (Groq, OpenRouter, Ollama и др.)

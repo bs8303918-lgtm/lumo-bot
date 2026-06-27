@@ -14,6 +14,7 @@ KEYS = [
     "TELEGRAM_BOT_TOKEN",
     "DATABASE_URL",
     "TELETHON_SESSION_PATH",
+    "TELETHON_SESSION_STRING",
     "LUMO_MODE",
     "RAILWAY_ENVIRONMENT",
 ]
@@ -26,7 +27,7 @@ def main() -> None:
         val = os.environ.get(key)
         if val is None:
             print(f"  {key}: (не задано)")
-        elif key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_API_HASH", "DATABASE_URL"):
+        elif key in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_API_HASH", "DATABASE_URL", "TELETHON_SESSION_STRING"):
             print(f"  {key}: *** задано, длина {len(val)} ***")
         else:
             print(f"  {key}: {val}")
@@ -40,6 +41,8 @@ def main() -> None:
 
     session_file = Path(str(settings.resolved_telethon_session_path) + ".session")
     print("\n=== Telethon session ===")
+    ss = settings.telethon_session_string.strip()
+    print(f"  TELETHON_SESSION_STRING: {'задан, длина ' + str(len(ss)) if ss else 'не задан'}")
     print(f"  path: {session_file}")
     print(f"  exists: {session_file.is_file()}")
     if session_file.is_file():

@@ -5,8 +5,8 @@ logs/
 __pycache__/
 *.pyc
 .venv/
-lumo_session.session
-lumo_session.session-journal
+*.session
+*.session-journal
 telethon_qr.png
 
 # Frontend builds & deps

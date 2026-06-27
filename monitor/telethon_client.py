@@ -5,6 +5,7 @@ from pathlib import Path
 
 from telethon import TelegramClient
 from telethon.errors import AuthKeyUnregisteredError, SessionPasswordNeededError
+from telethon.sessions import StringSession
 
 from config import get_settings
 
@@ -20,6 +21,10 @@ class TelethonCredentialsMissingError(ValueError):
 def telethon_credentials_configured() -> bool:
     settings = get_settings()
     return bool(settings.telegram_api_id and settings.telegram_api_hash.strip())
+
+
+def uses_string_session() -> bool:
+    return bool(get_settings().telethon_session_string.strip())
 
 
 def prepare_telethon_session_path() -> Path:
@@ -40,11 +45,28 @@ def prepare_telethon_session_path() -> Path:
             ) from exc
         logger.warning(
             "Telethon session dir %s unavailable — using %s. "
-            "For persistent session: Railway Volume mount /data + TELETHON_SESSION_PATH=/data/lumo_session",
+            "Prefer TELETHON_SESSION_STRING in Railway Variables (see scripts/export_telethon_session.py).",
             parent,
             fallback,
         )
         return fallback
+
+
+def _build_client(settings) -> TelegramClient:
+    session_string = settings.telethon_session_string.strip()
+    if session_string:
+        logger.info("Telethon: using TELETHON_SESSION_STRING from env")
+        return TelegramClient(
+            StringSession(session_string),
+            settings.telegram_api_id,
+            settings.telegram_api_hash,
+        )
+    session_path = prepare_telethon_session_path()
+    return TelegramClient(
+        str(session_path),
+        settings.telegram_api_id,
+        settings.telegram_api_hash,
+    )
 
 
 def get_telethon_client() -> TelegramClient:
@@ -56,12 +78,7 @@ def get_telethon_client() -> TelegramClient:
                 "TELEGRAM_API_ID и TELEGRAM_API_HASH не заданы. "
                 "На Railway: сервис lumo-bot → Variables → добавьте обе переменные → Redeploy."
             )
-        session_path = prepare_telethon_session_path()
-        _client = TelegramClient(
-            str(session_path),
-            settings.telegram_api_id,
-            settings.telegram_api_hash,
-        )
+        _client = _build_client(settings)
     return _client
 
 
@@ -79,7 +96,7 @@ async def ensure_telethon_connected() -> TelegramClient:
                     await client.connect()
                     break
                 except sqlite3.OperationalError as exc:
-                    if "database is locked" not in str(exc).lower() or attempt == 4:
+                    if uses_string_session() or "database is locked" not in str(exc).lower() or attempt == 4:
                         raise
                     wait = 0.5 * (attempt + 1)
                     logger.warning(
@@ -91,13 +108,12 @@ async def ensure_telethon_connected() -> TelegramClient:
                     await asyncio.sleep(wait)
         if not await client.is_user_authorized():
             logger.warning(
-                "Telethon не залогинен. Остановите main.py и выполните: "
-                "python scripts/telethon_login.py"
+                "Telethon не залогинен. Локально: python scripts/telethon_login_qr.py && "
+                "python scripts/export_telethon_session.py → TELETHON_SESSION_STRING в Railway"
             )
     except AuthKeyUnregisteredError:
         logger.error(
-            "Сессия Telethon повреждена. Удалите lumo_session.session и выполните: "
-            "python scripts/reset_telethon_session.py && python scripts/telethon_login.py"
+            "Сессия Telethon повреждена. Сгенерируй новую: telethon_login_qr.py → export_telethon_session.py"
         )
         reset_client()
         raise

@@ -176,7 +176,9 @@ async def main() -> None:
     print("\nГотово! Сессия сохранена.")
     if os.environ.get("RAILWAY_ENVIRONMENT"):
         print("Redeploy сервис lumo-bot в Railway, чтобы бот снова запустился с новой сессией.")
+        print("Или экспортируй строку локально: python scripts/export_telethon_session.py")
     else:
+        print("Экспорт для Railway: python scripts/export_telethon_session.py")
         print("Теперь запускайте: python main.py")
 
 
