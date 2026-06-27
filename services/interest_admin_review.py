@@ -182,7 +182,9 @@ async def save_user_interest_profile(
             await sess.commit()
 
     if telegram_id is not None:
-        await submit_interest_for_admin_review(
+        from bot.background import schedule_interest_admin_review
+
+        schedule_interest_admin_review(
             user_id,
             telegram_id,
             username,

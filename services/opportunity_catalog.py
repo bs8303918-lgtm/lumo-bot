@@ -19,6 +19,7 @@ from services.interest_matcher import (
     extract_categories_from_text,
     rank_for_user,
     relevance_score,
+    resolve_catalog_filter,
     resolve_catalog_types,
     user_matches_type,
 )
@@ -230,8 +231,9 @@ class OpportunityCatalogService:
             repo = catalog_repo(session)
             user = await UserRepository(session).get_by_id(user_id)
             format_prefs = parse_format_preferences(user.interest_preferences_json if user else None)
+            search_types, extra_tags = resolve_catalog_filter(categories)
             items = await repo.get_active_for_user(
-                user_id, resolve_catalog_types(categories), limit=80
+                user_id, search_types, limit=80, extra_tags=extra_tags
             )
 
         candidates: list[CatalogOpportunity] = []

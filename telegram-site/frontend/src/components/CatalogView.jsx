@@ -12,6 +12,7 @@ export default function CatalogView({ onOpenItem }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
@@ -59,6 +60,7 @@ export default function CatalogView({ onOpenItem }) {
 
     async function bootstrap() {
       setLoading(true);
+      setLoadError(null);
       try {
         const data = await apiFetch(`/lumo/catalog-bootstrap?limit=${PAGE_SIZE}`);
         if (cancelled) return;
@@ -67,8 +69,9 @@ export default function CatalogView({ onOpenItem }) {
         setTotal(data.total ?? 0);
         setHasMore(Boolean(data.hasMore));
         bootstrappedRef.current = true;
-      } catch {
+      } catch (err) {
         if (!cancelled) {
+          setLoadError(err.message || 'Не удалось загрузить каталог');
           try {
             const cats = await apiFetch('/lumo/categories');
             if (!cancelled) setCategories(cats);
@@ -174,6 +177,10 @@ export default function CatalogView({ onOpenItem }) {
           );
         })}
       </div>
+
+      {loadError && !loading && (
+        <p className="text-center py-3 text-[12px] text-red-400 mb-2">{loadError}</p>
+      )}
 
       {loading ? (
         <p className="text-center py-12 text-[13px]" style={{ color: 'var(--lumo-text-muted)' }}>

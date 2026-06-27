@@ -42,3 +42,29 @@ def schedule_interest_llm_refine(user_id: int, interest_query: str) -> None:
             logger.warning("Background interest LLM refine failed user=%s: %s", user_id, exc)
 
     asyncio.create_task(_run())
+
+
+def schedule_interest_admin_review(
+    user_id: int,
+    telegram_id: int,
+    username: str | None,
+    interest_query: str,
+    profile,
+) -> None:
+    """Уведомление админу в Telegram — не блокирует API и бота."""
+
+    async def _run() -> None:
+        try:
+            from services.interest_admin_review import submit_interest_for_admin_review
+
+            await submit_interest_for_admin_review(
+                user_id,
+                telegram_id,
+                username,
+                interest_query,
+                profile,
+            )
+        except Exception as exc:
+            logger.warning("Background interest admin review failed user=%s: %s", user_id, exc)
+
+    asyncio.create_task(_run())

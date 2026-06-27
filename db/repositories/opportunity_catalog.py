@@ -388,11 +388,15 @@ class OpportunityCatalogRepository:
         user_id: int,
         types: list[str],
         limit: int = 60,
+        *,
+        extra_tags: list[str] | None = None,
     ) -> list[CatalogOpportunity]:
         if not types:
             types = list(OPPORTUNITY_TYPES)
         normalized = [t.lower().strip() for t in types]
-        filter_by_type = set(normalized) != set(OPPORTUNITY_TYPES)
+        all_types = [t for t in OPPORTUNITY_TYPES if t != "другое"]
+        filter_by_type = set(normalized) != set(all_types)
+        extra_wanted = {t.lower().strip() for t in (extra_tags or []) if t}
         user_channels = await self._user_channel_identifiers(user_id)
         result = await self.session.execute(
             select(CatalogOpportunity)
@@ -402,15 +406,26 @@ class OpportunityCatalogRepository:
             .where(CatalogOpportunity.is_active.is_(True))
             .where(self._catalog_access_condition(user_channels))
             .order_by(CatalogOpportunity.classified_at.desc())
-            .limit(limit * 4 if filter_by_type else limit * 3)
+            .limit(limit * 4 if (filter_by_type or extra_wanted) else limit * 3)
         )
         fresh = filter_fresh_entries(
             list(result.scalars().unique().all()),
             max_age_days_no_deadline=self.no_deadline_max_age_days,
         )
-        if filter_by_type:
-            wanted = set(normalized)
-            fresh = [e for e in fresh if wanted & set(entry_all_tags(e))]
+        if filter_by_type or extra_wanted:
+            wanted = set(normalized) if filter_by_type else set()
+
+            def _matches(entry: CatalogOpportunity) -> bool:
+                tags = set(entry_all_tags(entry))
+                type_hit = bool(wanted & tags) if wanted else False
+                extra_hit = bool(extra_wanted & tags) if extra_wanted else False
+                if wanted and extra_wanted:
+                    return type_hit or extra_hit
+                if wanted:
+                    return type_hit
+                return extra_hit
+
+            fresh = [e for e in fresh if _matches(e)]
         return fresh[:limit]
 
     async def list_all_active_for_user(
@@ -424,7 +439,8 @@ class OpportunityCatalogRepository:
         if not types:
             types = list(OPPORTUNITY_TYPES)
         normalized = [t.lower().strip() for t in types]
-        filter_by_type = set(normalized) != set(OPPORTUNITY_TYPES)
+        all_types = [t for t in OPPORTUNITY_TYPES if t != "другое"]
+        filter_by_type = set(normalized) != set(all_types)
         user_channels = await self._user_channel_identifiers(user_id)
         result = await self.session.execute(
             select(CatalogOpportunity)
@@ -444,6 +460,19 @@ class OpportunityCatalogRepository:
             wanted = set(normalized)
             fresh = [e for e in fresh if wanted & set(entry_all_tags(e))]
         return fresh
+
+    async def user_can_access_entry(self, user_id: int, entry_id: int) -> bool:
+        user_channels = await self._user_channel_identifiers(user_id)
+        result = await self.session.execute(
+            select(CatalogOpportunity.id)
+            .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
+            .join(MonitoredChannel, RawMessage.monitored_channel_id == MonitoredChannel.id)
+            .where(CatalogOpportunity.id == entry_id)
+            .where(CatalogOpportunity.is_active.is_(True))
+            .where(self._catalog_access_condition(user_channels))
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
 
     async def list_all_public_active(
         self,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from config import get_settings
 from llm.client import LLMClient
@@ -13,6 +14,19 @@ from services.interest_profile import InterestProfile, apply_interest_defaults, 
 from services.training_collector import record_interest_categories
 
 logger = logging.getLogger(__name__)
+
+_approved_domains_cache: tuple[float, list[str]] | None = None
+_APPROVED_DOMAINS_TTL_SEC = 300.0
+
+
+async def _approved_domains_cached() -> list[str]:
+    global _approved_domains_cache
+    now = time.monotonic()
+    if _approved_domains_cache and now - _approved_domains_cache[0] < _APPROVED_DOMAINS_TTL_SEC:
+        return _approved_domains_cache[1]
+    domains = await get_approved_domains()
+    _approved_domains_cache = (now, domains)
+    return domains
 
 
 def _needs_llm_categorization(profile: InterestProfile) -> bool:
@@ -49,7 +63,7 @@ async def categorize_interest(
     Returns: (profile, source) где source = local | llm | hybrid
     """
     text = (interest_query or "").strip()
-    approved = approved_domains if approved_domains is not None else await get_approved_domains()
+    approved = approved_domains if approved_domains is not None else await _approved_domains_cached()
     profile = parse_interest_profile(text, approved_domains=approved, apply_defaults=False)
     source = "local"
 

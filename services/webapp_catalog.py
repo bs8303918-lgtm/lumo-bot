@@ -16,7 +16,6 @@ from services.interest_matcher import (
     entry_all_tags,
     extract_categories_from_text,
     relevance_score,
-    resolve_catalog_types,
 )
 from services.opportunity_links import (
     normalize_application_url,
@@ -167,6 +166,9 @@ def match_opportunities_for_user(
     unique = dedupe_opportunities(items)
     floor = min_score if min_score is not None else MATCH_MIN_SCORE
 
+    intent_types = [c for c in categories if c in OPPORTUNITY_TYPES]
+    extra_tags = [c for c in categories if c not in intent_types and c != "другое"]
+
     scored: list[tuple[float, CatalogOpportunity]] = []
     for entry in unique:
         score = relevance_score(text, entry)
@@ -174,15 +176,35 @@ def match_opportunities_for_user(
     scored.sort(key=lambda pair: (pair[0], not is_unknown_deadline(pair[1].deadline)), reverse=True)
 
     picked = [entry for score, entry in scored if score >= floor][:limit]
-    if not picked:
-        intent = [c for c in categories if c in OPPORTUNITY_TYPES]
-        if intent:
-            wanted = set(intent)
-            for _, entry in scored:
-                if entry.opportunity_type in wanted or wanted & set(entry_all_tags(entry)):
-                    picked.append(entry)
-                    if len(picked) >= limit:
-                        break
+
+    if not picked and (intent_types or extra_tags):
+        wanted = set(intent_types)
+        extra = set(extra_tags)
+        pool: list[CatalogOpportunity] = []
+        for entry in unique:
+            tags = set(entry_all_tags(entry))
+            type_hit = bool(wanted) and (
+                entry.opportunity_type in wanted or bool(wanted & tags)
+            )
+            extra_hit = bool(extra) and bool(extra & tags)
+            if type_hit or extra_hit:
+                pool.append(entry)
+        if pool:
+            pool_scored = [(relevance_score(text, e), e) for e in pool]
+            pool_scored.sort(
+                key=lambda pair: (pair[0], not is_unknown_deadline(pair[1].deadline)),
+                reverse=True,
+            )
+            picked = [e for s, e in pool_scored if s >= floor][:limit] or [e for _, e in pool_scored][:limit]
+
+    if not picked and intent_types:
+        wanted = set(intent_types)
+        for _, entry in scored:
+            if entry.opportunity_type in wanted or wanted & set(entry_all_tags(entry)):
+                picked.append(entry)
+                if len(picked) >= limit:
+                    break
+
     return [serialize_opportunity(entry) for entry in picked], categories
 
 

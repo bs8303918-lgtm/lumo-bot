@@ -161,6 +161,19 @@ _WEAK_KEYWORDS: dict[str, frozenset[str]] = {
 
 MAX_OPPORTUNITY_TAGS = 4
 
+ALL_CATALOG_TYPES = [t for t in OPPORTUNITY_TYPES if t != "другое"]
+
+_CONTEST_RELATED = ("хакатон", "кейс", "олимпиада", "эссе")
+
+
+def _keyword_in_text(keyword: str, text: str) -> bool:
+    """Avoid «курс» matching inside «конкурсы»."""
+    lowered = text.lower()
+    kw = keyword.lower()
+    if len(kw) <= 4:
+        return bool(re.search(rf"(?<![\w]){re.escape(kw)}(?![\w])", lowered, flags=re.UNICODE))
+    return kw in lowered
+
 _TOPIC_ALIASES: dict[str, tuple[str, ...]] = {
     "стартапер": ("стартап", "startup", "start-up", "pitch", "питч", "акселератор", "ивент", "founder"),
     "стартап": ("startup", "pitch", "питч", "акселератор", "founder"),
@@ -210,7 +223,7 @@ def _keyword_hits(category: str, text: str) -> tuple[bool, bool]:
     strong_hit = False
     any_hit = False
     for kw in keywords:
-        if kw not in lowered:
+        if not _keyword_in_text(kw, lowered):
             continue
         any_hit = True
         if kw not in weak:
@@ -250,7 +263,7 @@ def extract_categories_from_text(text: str) -> list[str]:
     for category, keywords in CATEGORY_KEYWORDS.items():
         if category in merged:
             continue
-        if any(keyword in lowered for keyword in keywords):
+        if any(_keyword_in_text(keyword, lowered) for keyword in keywords):
             merged.append(category)
     for domain in extract_domains_from_text(text):
         if domain not in merged:
@@ -361,10 +374,33 @@ def is_standard_category(category: str) -> bool:
 
 
 def resolve_catalog_types(categories: list[str]) -> list[str]:
-    standard = [c for c in categories if is_standard_category(c)]
+    types, _extra = resolve_catalog_filter(categories)
+    return types
+
+
+def resolve_catalog_filter(categories: list[str]) -> tuple[list[str], list[str]]:
+    """Standard types + domain/custom tags for catalog search (OR when both set)."""
+    standard: list[str] = []
+    extra: list[str] = []
+    for cat in categories:
+        if is_standard_category(cat):
+            if cat not in standard:
+                standard.append(cat)
+        elif cat != "другое" and cat not in extra:
+            extra.append(cat)
+
     if standard:
-        return standard
-    return [t for t in OPPORTUNITY_TYPES if t != "другое"]
+        types = list(standard)
+        if "конкурс" in types:
+            for rel in _CONTEST_RELATED:
+                if rel not in types:
+                    types.append(rel)
+        return types, extra
+
+    if extra:
+        return list(ALL_CATALOG_TYPES), extra
+
+    return list(ALL_CATALOG_TYPES), []
 
 
 def _token_matches_blob(token: str, blob: str) -> bool:

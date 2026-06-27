@@ -51,20 +51,20 @@ export async function apiFetch(path, options = {}) {
     );
   }
 
+  const { timeoutMs, ...fetchOptions } = options;
   let res;
   const url = `${API}${path}`;
   const controller = new AbortController();
-  const timeoutMs = 120000;
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs ?? 15000);
   try {
     res = await fetch(url, {
-      ...options,
+      ...fetchOptions,
       signal: controller.signal,
-      headers: { ...apiHeaders(), ...options.headers },
+      headers: { ...apiHeaders(), ...fetchOptions.headers },
     });
   } catch (err) {
     if (err?.name === 'AbortError') {
-      throw new Error('Запрос занял слишком долго (>2 мин). Проверь Railway Logs и LLM ключ.');
+      throw new Error('Запрос занял слишком долго (>15 сек). Проверь Railway и VITE_API_URL.');
     }
     const hint = API_BASE ? ` (${url})` : '';
     throw new Error(

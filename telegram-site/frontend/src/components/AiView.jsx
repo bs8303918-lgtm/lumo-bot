@@ -65,31 +65,30 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
 
     try {
       let data;
+      const body = JSON.stringify({
+        query,
+        saveInterest: willSaveProfile,
+        limit: 12,
+      });
+      data = await apiFetch('/lumo/match', {
+        method: 'POST',
+        body,
+      });
+      setResult({
+        query,
+        message: data.message,
+        categories: data.categories,
+        items: data.items,
+        saved: willSaveProfile,
+        noMatch: data.noMatch,
+        suggestions: data.suggestions,
+      });
       if (willSaveProfile) {
-        data = await apiFetch('/users/interest', {
-          method: 'POST',
-          body: JSON.stringify({ query }),
-        });
-        setResult({
-          query,
-          message: data.message,
-          categories: data.categories,
-          items: data.items,
-          saved: true,
-          noMatch: data.noMatch,
-          suggestions: data.suggestions,
-        });
         onProfileRefresh?.();
         if (!isAdmin && (profile?.aiSearchRemaining ?? 1) <= 1) {
           limitPopupShownRef.current = false;
           setTimeout(() => onOpenPriceList?.('limit'), 400);
         }
-      } else {
-        data = await apiFetch('/lumo/match', {
-          method: 'POST',
-          body: JSON.stringify({ query, saveInterest: false }),
-        });
-        setResult({ ...data, saved: false });
       }
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
     } catch (err) {

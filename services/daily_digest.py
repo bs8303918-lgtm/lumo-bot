@@ -12,7 +12,7 @@ from db.models import CatalogOpportunity, User
 from db.repositories.opportunity_catalog import parse_interest_categories
 from db.repositories.users import EventRepository, SystemStateRepository, UserRepository
 from logging_setup import log_error
-from services.interest_matcher import rank_for_user, relevance_score, resolve_catalog_types
+from services.interest_matcher import rank_for_user, relevance_score, resolve_catalog_filter
 from services.notification_service import NotificationService, is_unreachable_user_error
 from services.opportunity_catalog import OpportunityCatalogService, catalog_repo
 
@@ -68,10 +68,12 @@ async def _get_recommendations(
 
     async with async_session_factory() as session:
         repo = catalog_repo(session)
+        search_types, extra_tags = resolve_catalog_filter(categories)
         items = await repo.get_active_for_user(
             user.id,
-            resolve_catalog_types(categories),
+            search_types,
             limit=60,
+            extra_tags=extra_tags,
         )
 
     candidates: list[CatalogOpportunity] = []
