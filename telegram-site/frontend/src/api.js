@@ -41,14 +41,16 @@ export async function apiFetch(path, options = {}) {
   }
 
   let res;
+  const url = `${API}${path}`;
   try {
-    res = await fetch(`${API}${path}`, {
+    res = await fetch(url, {
       ...options,
       headers: { ...apiHeaders(), ...options.headers },
     });
-  } catch {
+  } catch (err) {
+    const hint = API_BASE ? ` (${url})` : '';
     throw new Error(
-      'Не удалось связаться с API. Проверь, что бэкенд (Railway) запущен и VITE_API_URL указан верно.'
+      `Не удалось связаться с API${hint}. Проверь Railway Online, VITE_API_URL на Vercel и Redeploy после смены переменных.`
     );
   }
   const data = await readJsonResponse(res);

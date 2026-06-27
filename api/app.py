@@ -39,14 +39,20 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    origins = [o.strip() for o in settings.api_cors_origins.split(",") if o.strip()]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins or ["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    origins = [o.strip().rstrip("/") for o in settings.api_cors_origins.split(",") if o.strip()]
+    cors_kwargs: dict = {
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+        "allow_origin_regex": r"https://([a-z0-9-]+\.)*vercel\.app",
+    }
+    if origins:
+        cors_kwargs["allow_origins"] = origins
+        cors_kwargs["allow_credentials"] = True
+    else:
+        cors_kwargs["allow_origins"] = ["*"]
+        cors_kwargs["allow_credentials"] = False
+
+    app.add_middleware(CORSMiddleware, **cors_kwargs)
 
     app.include_router(grants.router, prefix="/api")
     app.include_router(catalog.router, prefix="/api")
