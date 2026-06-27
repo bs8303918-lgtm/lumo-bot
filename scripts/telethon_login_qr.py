@@ -24,7 +24,12 @@ def show_qr(url: str) -> None:
         os.startfile(QR_PATH)  # Windows: открыть картинку
         print("Картинка открыта автоматически.")
     except OSError:
-        print("Откройте файл telethon_qr.png вручную в папке lumo-bot.")
+        print("Картинка недоступна (Railway Shell / Linux) — QR в терминале ниже:")
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(url)
+        qr.make(fit=True)
+        qr.print_ascii(invert=True)
+        print("Или скопируйте tg:// ссылку ниже в https://www.qr-code-generator.com/")
 
 
 async def main() -> None:
