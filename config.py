@@ -1,0 +1,195 @@
+from functools import lru_cache
+from hashlib import md5
+from pathlib import Path
+from typing import Any
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BASE_DIR = Path(__file__).resolve().parent
+WEBAPP_DIST_INDEX = BASE_DIR / "telegram-site" / "frontend" / "dist" / "index.html"
+
+
+def webapp_cache_bust() -> str:
+    """Changes after each frontend build so Telegram reloads Mini App assets."""
+    if WEBAPP_DIST_INDEX.is_file():
+        return md5(WEBAPP_DIST_INDEX.read_bytes()).hexdigest()[:8]
+    return md5(b"no-build").hexdigest()[:8]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=BASE_DIR / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # Bot API
+    telegram_bot_token: str = ""
+    telegram_admin_chat_id: int | None = None
+    telegram_admin_ids: str = ""
+    admin_analytics_live: bool = False
+    support_telegram_username: str = "taton4i"
+
+    # Telethon
+    telegram_api_id: int = 0
+    telegram_api_hash: str = ""
+    telegram_phone: str = ""
+    telethon_session_name: str = "lumo_session"
+
+    # Database
+    database_url: str = f"sqlite+aiosqlite:///{(BASE_DIR / 'lumo.db').as_posix()}"
+
+    # LLM — gemini (Google) или openai (Groq, OpenRouter, Ollama и др.)
+    llm_provider: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.groq.com/openai/v1"
+    openai_model: str = "llama-3.1-8b-instant"
+
+    # Limits & intervals
+    max_user_channels: int = 5
+    monitor_interval_minutes: int = 1440
+    monitor_initial_posts_limit: int = 10
+    monitor_initial_max_age_days: int = 7
+    catalog_no_deadline_max_age_days: int = 7
+    llm_max_concurrent: int = 1
+    llm_processor_interval_seconds: int = 1200
+    llm_health_check_interval_seconds: int = 3600
+    llm_pending_scan_limit: int = 20
+    llm_max_pairs_per_cycle: int = 2
+    llm_max_message_age_days: int = 3
+    llm_reanalyze_recent_count: int = 10
+    llm_onboarding_max_pairs: int = 3
+    llm_onboarding_seed_scan_limit: int = 10
+    llm_classify_batch_limit: int = 5
+    llm_backfill_batch_limit: int = 5
+    llm_enable_pair_relevance: bool = False
+    llm_interest_categorization: bool = True
+    llm_request_delay_seconds: float = 5.0
+    llm_429_max_retries: int = 1
+    llm_429_retry_base_seconds: float = 8.0
+    llm_health_fail_cache_seconds: int = 120
+    llm_restart_cooldown_seconds: int = 300
+    bot_polling_timeout_seconds: int = 25
+    bot_http_timeout_seconds: float = 65.0
+    notification_digest_size: int = 3
+    notification_digest_max_flush: int = 3
+    digest_cooldown_hours: int = 12
+    catalog_notify_min_score: float = 3.0
+    telethon_request_delay_seconds: float = 2.0
+    require_public_channels: bool = True
+    ai_search_daily_limit: int = 3
+
+    # Training data (для будущего fine-tuning)
+    training_data_enabled: bool = True
+    training_data_dir: Path = BASE_DIR / "data" / "training"
+
+    # Paths
+    seed_channels_file: Path = BASE_DIR / "data" / "seed_channels.txt"
+    log_dir: Path = BASE_DIR / "logs"
+
+    # REST API (AI Startify Grants)
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
+    api_cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    api_access_token: str = ""
+    api_allow_dev_auth: bool = False
+    api_enabled: bool = True
+    auto_build_webapp: bool = True
+    public_base_url: str = ""
+    telegram_bot_username: str = "LumoAI1bot"
+    telegram_webapp_url: str = ""
+    mini_app_menu_text: str = "Open"
+    community_telegram_handle: str = "Lumo Community"
+    community_telegram_url: str = "https://t.me/+hA0CwgbStLI0MGRi"
+
+    @property
+    def telethon_session_path(self) -> Path:
+        return BASE_DIR / self.telethon_session_name
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
+
+    def is_admin(self, chat_id: int) -> bool:
+        try:
+            uid = int(chat_id)
+        except (TypeError, ValueError):
+            return False
+        if self.telegram_admin_chat_id is not None and uid == int(self.telegram_admin_chat_id):
+            return True
+        for part in self.telegram_admin_ids.replace(";", ",").split(","):
+            text = part.strip()
+            if text and text.isdigit() and uid == int(text):
+                return True
+        return False
+
+    @property
+    def llm_configured(self) -> bool:
+        if self.llm_provider.lower() == "openai":
+            return bool(self.openai_api_key)
+        return bool(self.gemini_api_key)
+
+    @property
+    def llm_model_name(self) -> str:
+        if self.llm_provider.lower() == "openai":
+            return self.openai_model
+        return self.gemini_model
+
+    @property
+    def support_contact(self) -> str:
+        name = self.support_telegram_username.strip().lstrip("@")
+        return f"@{name}" if name else "@taton4i"
+
+    @property
+    def resolved_webapp_url(self) -> str:
+        explicit = (self.telegram_webapp_url or "").strip()
+        base = explicit.rstrip("/") if explicit else (self.public_base_url or "").strip().rstrip("/")
+        if not base:
+            return ""
+        if not base.endswith("/app"):
+            base = f"{base}/app"
+        return f"{base}/?v={webapp_cache_bust()}"
+
+    @field_validator("telegram_api_id", mode="before")
+    @classmethod
+    def empty_api_id_to_zero(cls, value: Any) -> Any:
+        if value is None or value == "":
+            return 0
+        return value
+
+    @field_validator("telegram_admin_chat_id", mode="before")
+    @classmethod
+    def empty_admin_id_to_none(cls, value: Any) -> Any:
+        if value is None or value == "":
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def resolve_sqlite_database_url(cls, value: str) -> str:
+        relative_prefix = "sqlite+aiosqlite:///./"
+        if value.startswith(relative_prefix):
+            rel = value[len(relative_prefix) :]
+            abs_path = (BASE_DIR / rel).resolve()
+            return f"sqlite+aiosqlite:///{abs_path.as_posix()}"
+        return value
+
+    @field_validator("gemini_model", mode="before")
+    @classmethod
+    def sanitize_gemini_model(cls, value: Any) -> str:
+        if not value:
+            return "gemini-2.5-flash"
+        text = str(value).strip().split("#")[0].strip()
+        return text.split()[0] if text.split() else "gemini-2.5-flash"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

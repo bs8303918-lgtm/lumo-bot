@@ -1,0 +1,88 @@
+"""Вход в Telethon через QR-код (без SMS). Run: python scripts/telethon_login_qr.py"""
+import asyncio
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import qrcode
+from telethon.errors import SessionPasswordNeededError
+
+from config import get_settings
+from monitor.telethon_client import get_telethon_client, reset_client
+
+
+QR_PATH = Path(__file__).resolve().parent.parent / "telethon_qr.png"
+
+
+def show_qr(url: str) -> None:
+    img = qrcode.make(url)
+    img.save(QR_PATH)
+    print(f"\nQR-код сохранён: {QR_PATH}")
+    try:
+        os.startfile(QR_PATH)  # Windows: открыть картинку
+        print("Картинка открыта автоматически.")
+    except OSError:
+        print("Откройте файл telethon_qr.png вручную в папке lumo-bot.")
+
+
+async def main() -> None:
+    settings = get_settings()
+    if not settings.telegram_api_id or not settings.telegram_api_hash:
+        print("Ошибка: заполните TELEGRAM_API_ID и TELEGRAM_API_HASH в .env")
+        return
+
+    reset_client()
+    client = get_telethon_client()
+    await client.connect()
+
+    if await client.is_user_authorized():
+        print("Сессия уже активна — Telethon залогинен.")
+        await client.disconnect()
+        return
+
+    print("=" * 50)
+    print("ВХОД ЧЕРЕЗ QR-КОД")
+    print("=" * 50)
+    print("\nНа телефоне:")
+    print("  Telegram → Настройки → Устройства")
+    print("  → Подключить устройство → Отсканировать QR\n")
+    print("Ожидаю сканирование (QR обновляется каждые 25 сек)...\n")
+
+    while True:
+        qr_login = await client.qr_login()
+        show_qr(qr_login.url)
+
+        try:
+            user = await asyncio.wait_for(qr_login.wait(), timeout=25.0)
+            name = getattr(user, "first_name", None) or getattr(user, "username", "user")
+            print(f"\nВход выполнен: {name}")
+            break
+        except asyncio.TimeoutError:
+            print("QR истёк, генерирую новый...")
+            try:
+                await qr_login.recreate()
+            except Exception:
+                qr_login = await client.qr_login()
+        except SessionPasswordNeededError:
+            password = input("\nВключён облачный пароль (2FA). Введите его: ").strip()
+            await client.sign_in(password=password)
+            print("2FA принят.")
+            break
+        except Exception as exc:
+            print(f"\nОшибка: {exc}")
+            print("Попробуйте сначала: python scripts/reset_telethon_session.py")
+            await client.disconnect()
+            return
+
+    if QR_PATH.exists():
+        QR_PATH.unlink(missing_ok=True)
+
+    await client.disconnect()
+    print("\nГотово! Сессия сохранена.")
+    print("Теперь запускайте: python main.py")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

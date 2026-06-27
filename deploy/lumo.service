@@ -1,0 +1,16 @@
+[Unit]
+Description=Lumo Telegram Bot (aiogram + Telethon)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/lumo-bot
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/lumo-bot/.venv/bin/python main.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

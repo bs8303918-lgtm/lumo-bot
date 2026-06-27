@@ -1,0 +1,208 @@
+@import 'tailwindcss';
+
+:root {
+  --lumo-bg: #eef2f7;
+  --lumo-surface: #ffffff;
+  --lumo-surface-muted: #f3f6fa;
+  --lumo-border: rgba(26, 35, 50, 0.08);
+  --lumo-text: #1a2332;
+  --lumo-text-muted: #6b7a90;
+  --lumo-accent: #3a86ff;
+  --lumo-accent-light: #4cc9f0;
+  --lumo-accent-soft: rgba(58, 134, 255, 0.12);
+  --lumo-chip-bg: #ffffff;
+  --lumo-chip-border: rgba(26, 35, 50, 0.08);
+  --lumo-filter-active: #1a2332;
+  --lumo-filter-inactive: #ffffff;
+  --lumo-send-glow: rgba(58, 134, 255, 0.35);
+  --lumo-tag-grant-bg: #dcfce7;
+  --lumo-tag-grant-text: #15803d;
+  --lumo-tag-scholar-bg: #ffedd5;
+  --lumo-tag-scholar-text: #c2410c;
+  --lumo-tag-hack-bg: #dbeafe;
+  --lumo-tag-hack-text: #1d4ed8;
+  --lumo-tag-intern-bg: #e0e7ff;
+  --lumo-tag-intern-text: #4338ca;
+  --lumo-tag-contest-bg: #f3e8ff;
+  --lumo-tag-contest-text: #7e22ce;
+  --lumo-tag-event-bg: #fce7f3;
+  --lumo-tag-event-text: #be185d;
+  --lumo-tag-audience-bg: #e0f2fe;
+  --lumo-tag-audience-text: #0369a1;
+  --lumo-tag-default-bg: #f1f5f9;
+  --lumo-tag-default-text: #475569;
+  --lumo-profile-chip-bg: rgba(58, 134, 255, 0.1);
+  --lumo-profile-chip-text: #2563eb;
+  --lumo-urgent: #ea580c;
+  --lumo-link: #3a86ff;
+  --lumo-admin-accent: #8b5cf6;
+  --lumo-admin-soft: rgba(139, 92, 246, 0.12);
+}
+
+.dark {
+  --lumo-bg: #0b0e14;
+  --lumo-surface: #151a24;
+  --lumo-surface-muted: #1a2030;
+  --lumo-border: rgba(255, 255, 255, 0.07);
+  --lumo-text: #f3f6fb;
+  --lumo-text-muted: #8b98ab;
+  --lumo-accent: #4cc9f0;
+  --lumo-accent-light: #3a86ff;
+  --lumo-accent-soft: rgba(76, 201, 240, 0.12);
+  --lumo-chip-bg: #151a24;
+  --lumo-chip-border: rgba(255, 255, 255, 0.08);
+  --lumo-filter-active: #3a86ff;
+  --lumo-filter-inactive: #151a24;
+  --lumo-send-glow: rgba(76, 201, 240, 0.45);
+  --lumo-tag-grant-bg: rgba(34, 197, 94, 0.15);
+  --lumo-tag-grant-text: #4ade80;
+  --lumo-tag-scholar-bg: rgba(251, 146, 60, 0.15);
+  --lumo-tag-scholar-text: #fb923c;
+  --lumo-tag-hack-bg: rgba(59, 130, 246, 0.15);
+  --lumo-tag-hack-text: #60a5fa;
+  --lumo-tag-intern-bg: rgba(99, 102, 241, 0.15);
+  --lumo-tag-intern-text: #818cf8;
+  --lumo-tag-contest-bg: rgba(168, 85, 247, 0.15);
+  --lumo-tag-contest-text: #c084fc;
+  --lumo-tag-event-bg: rgba(236, 72, 153, 0.15);
+  --lumo-tag-event-text: #f472b6;
+  --lumo-tag-audience-bg: rgba(14, 165, 233, 0.15);
+  --lumo-tag-audience-text: #38bdf8;
+  --lumo-tag-default-bg: rgba(148, 163, 184, 0.12);
+  --lumo-tag-default-text: #94a3b8;
+  --lumo-profile-chip-bg: rgba(76, 201, 240, 0.12);
+  --lumo-profile-chip-text: #4cc9f0;
+  --lumo-urgent: #fb923c;
+  --lumo-link: #4cc9f0;
+  --lumo-admin-accent: #a78bfa;
+  --lumo-admin-soft: rgba(167, 139, 250, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--lumo-bg);
+  color: var(--lumo-text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.lumo-gradient-text {
+  background: linear-gradient(135deg, var(--lumo-accent-light) 0%, var(--lumo-accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lumo-btn-primary {
+  background: linear-gradient(135deg, var(--lumo-accent-light) 0%, var(--lumo-accent) 100%);
+  color: white;
+}
+
+.lumo-send-btn {
+  background: linear-gradient(135deg, #4cc9f0 0%, #3a86ff 100%);
+  box-shadow: 0 0 0 4px var(--lumo-send-glow);
+}
+
+.lumo-tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--lumo-accent);
+  border-radius: 2px 2px 0 0;
+}
+
+.lumo-card {
+  background: var(--lumo-surface);
+  border: 1px solid var(--lumo-border);
+  border-radius: 16px;
+}
+
+.lumo-input-area {
+  background: var(--lumo-surface);
+  border: 1px solid var(--lumo-border);
+  border-radius: 16px;
+}
+
+.lumo-chip {
+  background: var(--lumo-chip-bg);
+  border: 1px solid var(--lumo-chip-border);
+  border-radius: 999px;
+}
+
+.lumo-filter-active {
+  background: var(--lumo-filter-active);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.lumo-filter-inactive {
+  background: var(--lumo-filter-inactive);
+  color: var(--lumo-text);
+  border: 1px solid var(--lumo-border);
+}
+
+.lumo-progress-track {
+  background: var(--lumo-surface-muted);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.lumo-progress-fill {
+  background: linear-gradient(90deg, var(--lumo-accent-light), var(--lumo-accent));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.lumo-form-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lumo-text-muted);
+}
+
+.lumo-form-input {
+  width: 100%;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  border: 1px solid var(--lumo-border);
+  background: var(--lumo-surface-muted);
+  color: var(--lumo-text);
+}
+
+.lumo-form-input:focus {
+  outline: none;
+  border-color: var(--lumo-accent);
+}
+
+.lumo-mode-active {
+  border: 2px solid #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.lumo-mode-inactive {
+  border: 1px solid var(--lumo-border);
+  background: var(--lumo-surface-muted);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

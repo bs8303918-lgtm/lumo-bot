@@ -1,0 +1,18 @@
+{
+  "slug": "kbtu_startup_camp",
+  "title": "Летний стартап-лагерь от Бизнес-инкубатора КБТУ",
+  "learn": "Строить стартапы с нуля и упаковывать продукт",
+  "format": "Лекции, трекшн-встречи + практика с менторами",
+  "location": "Офлайн (Алматы) / Онлайн",
+  "deadline": "6 июля",
+  "promo_code": "LUMO",
+  "promo_discount": "15%",
+  "telegram_url": "https://t.me/startup_course_com/5916",
+  "apply_url": "https://forms.gle/hwGiHyrFiAapPRQ17",
+  "info_url": "https://t.me/startup_course_com/5916",
+  "tiers": {
+    "perfect": [4, 12, 68, 113, 49, 70, 56, 108],
+    "high": [16, 18, 31, 50, 57, 67, 92, 95, 78, 55, 54, 28],
+    "partial": [7, 48, 63, 91, 41, 9, 106, 114, 115, 82]
+  }
+}

@@ -1,0 +1,29 @@
+logs/
+*.db
+.env
+.lumo.lock
+__pycache__/
+*.pyc
+.venv/
+lumo_session.session
+lumo_session.session-journal
+telethon_qr.png
+
+# Frontend builds & deps
+node_modules/
+dist/
+.vite/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage

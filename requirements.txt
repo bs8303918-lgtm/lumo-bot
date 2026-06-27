@@ -1,0 +1,13 @@
+aiogram>=3.13,<4
+telethon>=1.36,<2
+sqlalchemy[asyncio]>=2.0,<3
+alembic>=1.13,<2
+aiosqlite>=0.20,<1
+asyncpg>=0.29,<1
+google-genai>=1.0,<2
+httpx>=0.28,<1
+qrcode[pil]>=7.4,<9
+pydantic-settings>=2.5,<3
+python-dotenv>=1.0,<2
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1
