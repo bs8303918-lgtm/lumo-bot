@@ -1,10 +1,12 @@
 function normalizeApiBase(raw) {
-  let base = (raw || '').trim().replace(/\/$/, '');
-  // Частая ошибка: VITE_API_URL=https://....railway.app/api → двойной /api/api/...
-  if (base.endsWith('/api')) {
-    base = base.slice(0, -4);
+  const text = (raw || '').trim();
+  if (!text) return '';
+  try {
+    const url = new URL(text.startsWith('http') ? text : `https://${text}`);
+    return url.origin;
+  } catch {
+    return text.replace(/\/$/, '').replace(/\/api(\/.*)?$/, '');
   }
-  return base;
 }
 
 const API_BASE = normalizeApiBase(import.meta.env.VITE_API_URL);

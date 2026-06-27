@@ -17,10 +17,9 @@ BTN_HELP = "📖 Помощь"
 
 def webapp_open_inline() -> InlineKeyboardMarkup | None:
     """Fresh Mini App URL — use this if the blue Open button shows an old tunnel."""
-    url = get_settings().resolved_webapp_url
+    url = get_settings().telegram_webapp_base_url
     if not url:
         return None
-    plain = url.split("?", 1)[0]
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -32,7 +31,7 @@ def webapp_open_inline() -> InlineKeyboardMarkup | None:
             [
                 InlineKeyboardButton(
                     text="🔗 Открыть ссылку",
-                    url=plain,
+                    url=url,
                 )
             ],
         ]

@@ -179,15 +179,23 @@ class Settings(BaseSettings):
         return f"@{name}" if name else "@taton4i"
 
     @property
-    def resolved_webapp_url(self) -> str:
+    def telegram_webapp_base_url(self) -> str:
+        """HTTPS URL for Telegram WebApp buttons (no query string — BotFather domain match)."""
         explicit = (self.telegram_webapp_url or "").strip().rstrip("/")
         if explicit:
-            return f"{explicit}/?v={webapp_cache_bust()}"
+            return explicit
         base = (self.public_base_url or "").strip().rstrip("/")
         if not base:
             return ""
         if not base.endswith("/app"):
             base = f"{base}/app"
+        return base
+
+    @property
+    def resolved_webapp_url(self) -> str:
+        base = self.telegram_webapp_base_url
+        if not base:
+            return ""
         return f"{base}/?v={webapp_cache_bust()}"
 
     @field_validator("telegram_api_id", mode="before")
