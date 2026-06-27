@@ -1,4 +1,13 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+function normalizeApiBase(raw) {
+  let base = (raw || '').trim().replace(/\/$/, '');
+  // Частая ошибка: VITE_API_URL=https://....railway.app/api → двойной /api/api/...
+  if (base.endsWith('/api')) {
+    base = base.slice(0, -4);
+  }
+  return base;
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_URL);
 const API = API_BASE ? `${API_BASE}/api` : '/api';
 
 async function readJsonResponse(res) {
@@ -55,6 +64,11 @@ export async function apiFetch(path, options = {}) {
   }
   const data = await readJsonResponse(res);
   if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error(
+        `API 404 Not Found (${url}). VITE_API_URL на Vercel = только домен Railway, без /api в конце.`
+      );
+    }
     if (res.status === 530) {
       throw new Error(
         'API недоступен. Проверь Railway и переменную VITE_API_URL на Vercel.'
