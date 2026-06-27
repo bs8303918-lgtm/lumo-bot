@@ -4,9 +4,12 @@ from datetime import datetime, timedelta, timezone
 
 from urllib.parse import urlparse, urlunparse
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import get_settings
 from db.models import Event, ProcessedPair, RawMessage, SentMatch, SystemState, User, UserChannel
 
 
@@ -95,8 +98,9 @@ class UserRepository:
                 user.notifications_enabled = True
             return user, False
 
+        upsert = sqlite_insert if get_settings().is_sqlite else pg_insert
         result = await self.session.execute(
-            insert(User)
+            upsert(User)
             .values(
                 telegram_id=telegram_id,
                 username=username,
