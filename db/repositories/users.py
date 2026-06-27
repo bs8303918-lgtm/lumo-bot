@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from urllib.parse import urlparse, urlunparse
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import DBAPIError
