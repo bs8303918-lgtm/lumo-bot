@@ -4,8 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from urllib.parse import urlparse, urlunparse
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Event, ProcessedPair, RawMessage, SentMatch, SystemState, User, UserChannel
@@ -97,7 +96,7 @@ class UserRepository:
             return user, False
 
         result = await self.session.execute(
-            sqlite_insert(User)
+            insert(User)
             .values(
                 telegram_id=telegram_id,
                 username=username,

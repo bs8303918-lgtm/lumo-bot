@@ -20,6 +20,8 @@ engine_kwargs: dict = {
 if settings.is_sqlite:
     engine_kwargs["connect_args"] = {"timeout": 30}
     engine_kwargs["poolclass"] = NullPool
+elif "supabase" in settings.database_url:
+    engine_kwargs["connect_args"] = {"ssl": "require"}
 
 engine = create_async_engine(settings.database_url, **engine_kwargs)
 

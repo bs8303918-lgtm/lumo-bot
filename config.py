@@ -173,7 +173,9 @@ class Settings(BaseSettings):
 
     @field_validator("database_url", mode="after")
     @classmethod
-    def resolve_sqlite_database_url(cls, value: str) -> str:
+    def resolve_database_url(cls, value: str) -> str:
+        if value.startswith("postgresql://") and "+asyncpg" not in value:
+            value = value.replace("postgresql://", "postgresql+asyncpg://", 1)
         relative_prefix = "sqlite+aiosqlite:///./"
         if value.startswith(relative_prefix):
             rel = value[len(relative_prefix) :]

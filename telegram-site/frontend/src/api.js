@@ -1,4 +1,5 @@
-const API = '/api';
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API = API_BASE ? `${API_BASE}/api` : '/api';
 
 export function getTelegram() {
   return window.Telegram?.WebApp ?? null;
