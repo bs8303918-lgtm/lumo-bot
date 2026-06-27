@@ -3,7 +3,7 @@ from hashlib import md5
 from pathlib import Path
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -107,10 +107,22 @@ class Settings(BaseSettings):
     community_telegram_handle: str = "Lumo Community"
     community_telegram_url: str = "https://t.me/+hA0CwgbStLI0MGRi"
 
-    # full = bot + worker (local dev); worker = Railway (API/monitor/LLM); bot = polling only (local)
+    # full = bot + API + monitor + LLM (Railway prod); worker = без polling; bot = только polling локально
     lumo_mode: str = "full"
     skip_instance_lock: bool = False
     telethon_session_path: str = ""
+
+    @model_validator(mode="after")
+    def railway_full_stack(self) -> "Settings":
+        """На Railway всегда full (бот + worker), если явно не bot."""
+        import os
+
+        on_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
+        if on_railway and self.lumo_mode.lower() == "worker":
+            object.__setattr__(self, "lumo_mode", "full")
+        if on_railway and not self.skip_instance_lock:
+            object.__setattr__(self, "skip_instance_lock", True)
+        return self
 
     @property
     def resolved_telethon_session_path(self) -> Path:

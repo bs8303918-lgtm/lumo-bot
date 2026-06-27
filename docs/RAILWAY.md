@@ -74,32 +74,26 @@ Railway = **долгоживущий контейнер** (не serverless). П�
 
 ## 3. Variables (Railway → lumo-bot)
 
+Скопируй шаблон: **`deploy/railway.env.example`**
+
+**Минимум для бота + API на Railway:**
+
 ```env
 LUMO_MODE=full
-SERVE_MINI_APP=false
-AUTO_BUILD_WEBAPP=false
-DATABASE_URL=postgresql://...
+DATABASE_URL=postgresql://postgres.odfbsoitpodwrdawsotr:ПАРОЛЬ@aws-1-ap-south-1.pooler.supabase.com:6543/postgres
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_API_ID=...
 TELEGRAM_API_HASH=...
 TELEGRAM_ADMIN_CHAT_ID=...
-LLM_PROVIDER=openai
-OPENAI_API_KEY=...
-OPENAI_BASE_URL=https://api.groq.com/openai/v1
-OPENAI_MODEL=llama-3.1-8b-instant
-PUBLIC_BASE_URL=https://YOUR-SERVICE.up.railway.app
-TELEGRAM_WEBAPP_URL=https://YOUR-APP.vercel.app
-API_CORS_ORIGINS=https://YOUR-APP.vercel.app
-SKIP_INSTANCE_LOCK=true
 TELETHON_SESSION_PATH=/data/lumo_session
+SKIP_INSTANCE_LOCK=true
+SERVE_MINI_APP=false
+AUTO_BUILD_WEBAPP=false
 ```
 
-| Переменная | Зачем |
-|------------|--------|
-| `LUMO_MODE=full` | бот + worker в одном процессе |
-| `PUBLIC_BASE_URL` | домен Railway (API) |
-| `TELEGRAM_WEBAPP_URL` | домен Vercel (кнопка Open) |
-| `TELETHON_SESSION_PATH` | сессия Telethon на volume |
+> Если `LUMO_MODE=worker` — на Railway код **сам переключит на full** (бот + API вместе).
+
+Полный список + LLM + Vercel URLs:
 
 ---
 

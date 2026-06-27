@@ -157,7 +157,9 @@ async def main() -> None:
     if use_lock:
         acquire_instance_lock()
 
-    logger.info("Starting Lumo (mode=%s)...", mode)
+    logger.info("Starting Lumo (mode=%s, railway=%s)...", mode, settings.is_railway)
+    if settings.is_railway and settings.is_bot_polling:
+        logger.info("Telegram bot polling enabled on Railway")
     logger.info("LLM provider: %s, model: %s", settings.llm_provider, settings.llm_model_name)
 
     bot = None
