@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     require_public_channels: bool = True
     ai_search_daily_limit: int = 3
 
+    # Partner B2B (AI Startify) — subscriptions_enforced=false пока бот бесплатный
+    partner_api_key: str = ""
+    subscriptions_enforced: bool = False
+    subscription_preview_enabled: bool = True
+    startify_checkout_url: str = ""
+
     # Training data (для будущего fine-tuning)
     training_data_enabled: bool = True
     training_data_dir: Path = BASE_DIR / "data" / "training"

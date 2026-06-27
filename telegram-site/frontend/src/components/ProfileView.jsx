@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Trash2, Users } from 'lucide-react';
 import { apiFetch, getTelegram, haptic, openBotCommand } from '../api';
 import BugReportModal from './BugReportModal';
+import SubscriptionSection from './SubscriptionSection';
 import { typeLabel } from '../utils/categories';
 
 const COMMANDS = [
@@ -17,7 +18,7 @@ function channelInitial(title) {
   return ch[0]?.toUpperCase() || '?';
 }
 
-export default function ProfileView({ meta, profile, onProfileRefresh }) {
+export default function ProfileView({ meta, profile, plans = [], onProfileRefresh, onOpenPriceList }) {
   const [channels, setChannels] = useState([]);
   const [bugOpen, setBugOpen] = useState(false);
   const [removingId, setRemovingId] = useState(null);
@@ -77,6 +78,13 @@ export default function ProfileView({ meta, profile, onProfileRefresh }) {
           </p>
         )}
       </header>
+
+      <SubscriptionSection
+        meta={meta}
+        profile={profile}
+        plans={plans}
+        onOpenPriceList={onOpenPriceList}
+      />
 
       <section className="lumo-card p-4">
         <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--lumo-text-muted)' }}>

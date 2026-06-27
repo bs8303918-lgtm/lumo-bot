@@ -105,6 +105,94 @@ _LLM_META_DESCRIPTION_MARKERS = (
     "looking for information",
 )
 
+_CONSULTING_STRONG_MARKERS = (
+    "записаться на консультацию",
+    "запишитесь на консультацию",
+    "запись на консультацию",
+    "записаться на бесплатную консультацию",
+    "whatsapp для записи",
+    "whatsapp для записи на",
+    "историю и отзыв можете прочитать",
+    "историю и отзыв можно прочитать",
+    "её историю и отзыв",
+    "его историю и отзыв",
+    "наш кейс",
+    "кейс нашего студента",
+    "история успеха",
+    "success story",
+)
+
+_CONSULTING_PROGRAM_BAIT = (
+    "daad",
+    "chevening",
+    "fulbright",
+    "bolashak",
+    "болашак",
+    "stipendium hungaricum",
+    "gks",
+    "global korea scholarship",
+)
+
+_SUCCESS_STORY_PATTERNS = (
+    re.compile(
+        r"(?:получил[аи]?|выиграл[аи]?|поступил[аи]?)\s+.{0,40}(?:полн(?:ый|ую|ого)|100\s*%)\s+"
+        r"(?:грант|стипенди|scholarship|grant)",
+        re.I,
+    ),
+    re.compile(
+        r"(?:её|его|их)\s+истори(?:ю|и).{0,40}(?:отзыв|прочитать|читать)",
+        re.I,
+    ),
+    re.compile(
+        r"истори(?:я|ю)\s+(?:и\s+)?отзыв",
+        re.I,
+    ),
+)
+
+
+def is_likely_consulting_promo(text: str) -> tuple[bool, str | None]:
+    """
+    Реклама образовательного консалтинга: кейсы «получила грант», отзывы, запись в WhatsApp.
+    Не открытый конкурс/грант с дедлайном.
+    """
+    if not text or len(text.strip()) < 40:
+        return False, None
+
+    lowered = text.lower()
+
+    for marker in _CONSULTING_STRONG_MARKERS:
+        if marker in lowered:
+            return True, "consulting_promo"
+
+    if re.search(r"wa\.me/|api\.whatsapp\.com", lowered):
+        if any(w in lowered for w in ("консультац", "запис", "набор на", "поступлен")):
+            return True, "consulting_whatsapp"
+
+    bait_hits = sum(1 for name in _CONSULTING_PROGRAM_BAIT if name in lowered)
+    if bait_hits >= 3 and any(
+        w in lowered for w in ("консультац", "запис", "whatsapp", "поможем", "сопровожден")
+    ):
+        return True, "consulting_program_list"
+
+    for pattern in _SUCCESS_STORY_PATTERNS:
+        if pattern.search(text):
+            if not _has_announcement_signal(lowered):
+                return True, "success_story"
+            if any(w in lowered for w in ("консультац", "отзыв", "истори")):
+                return True, "success_story_consulting"
+
+    if re.search(r"путь\s+от\s+.+\s+до\s+", lowered) and "консультац" in lowered:
+        return True, "consulting_journey"
+
+    if (
+        re.search(r"получил[аи]?\s+.{0,30}(?:грант|стипенди)", lowered)
+        and any(w in lowered for w in ("отзыв", "истори", "прочитать"))
+        and not any(h in lowered for h in ("подать заяв", "deadline", "дедлайн", "регистрац", "apply"))
+    ):
+        return True, "success_story_review"
+
+    return False, None
+
 
 def is_likely_results_news(text: str) -> tuple[bool, str | None]:
     """News about winners/results lists — not an open call to apply."""
@@ -232,6 +320,10 @@ def is_invalid_opportunity_extraction(data, source_text: str) -> tuple[bool, str
     if is_digest:
         return True, digest_reason
 
+    is_consulting, consulting_reason = is_likely_consulting_promo(source_text)
+    if is_consulting:
+        return True, consulting_reason
+
     is_question, q_reason = is_likely_chat_question(source_text)
     if is_question:
         return True, q_reason
@@ -268,6 +360,10 @@ def is_likely_spam_or_ad(text: str) -> tuple[bool, str | None]:
     is_digest, digest_reason = is_likely_digest_or_roundup(text)
     if is_digest:
         return True, digest_reason
+
+    is_consulting, consulting_reason = is_likely_consulting_promo(text)
+    if is_consulting:
+        return True, consulting_reason
 
     lowered = text.lower()
 

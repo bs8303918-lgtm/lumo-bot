@@ -16,8 +16,9 @@ const FALLBACK_SUGGESTIONS = [
 const DEFAULT_PROMPT =
   'Я стартапер. Ищу питчи, конкурсы стартапов, хакатоны, гранты, стажировки, митапы и онлайн-встречи в Казахстане — хочу развивать проект и учиться у других.';
 
-export default function AiView({ onOpenItem, meta, profile, onProfileRefresh }) {
+export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, onOpenPriceList }) {
   const resultsRef = useRef(null);
+  const limitPopupShownRef = useRef(false);
   const [prompt, setPrompt] = useState(profile?.interestQuery || DEFAULT_PROMPT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -35,10 +36,27 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh }) 
     if (profile?.interestQuery) setPrompt(profile.interestQuery);
   }, [profile?.interestQuery]);
 
+  useEffect(() => {
+    if (isAdmin || remaining > 0 || !onOpenPriceList) return;
+    if (limitPopupShownRef.current) return;
+    if ((profile?.aiSearchUsed ?? 0) < dailyLimit) return;
+    limitPopupShownRef.current = true;
+    onOpenPriceList('limit');
+  }, [isAdmin, remaining, dailyLimit, profile?.aiSearchUsed, onOpenPriceList]);
+
+  const triggerPriceList = () => {
+    haptic('light');
+    onOpenPriceList?.('limit');
+  };
+
   const submit = async (text = prompt) => {
     const query = text.trim();
     const willSaveProfile = query.length >= minLen;
-    if (query.length < 3 || loading || (willSaveProfile && remaining <= 0 && !isAdmin)) return;
+    if (query.length < 3 || loading) return;
+    if (willSaveProfile && remaining <= 0 && !isAdmin) {
+      triggerPriceList();
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -62,6 +80,10 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh }) 
           suggestions: data.suggestions,
         });
         onProfileRefresh?.();
+        if (!isAdmin && (profile?.aiSearchRemaining ?? 1) <= 1) {
+          limitPopupShownRef.current = false;
+          setTimeout(() => onOpenPriceList?.('limit'), 400);
+        }
       } else {
         data = await apiFetch('/lumo/match', {
           method: 'POST',
@@ -72,6 +94,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh }) 
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
     } catch (err) {
       setError(err.message);
+      if (err.showPricing) onOpenPriceList?.('limit');
     } finally {
       setLoading(false);
     }
@@ -91,11 +114,21 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh }) 
           {isAdmin
             ? `Admin · без лимита · в каталоге ${profile?.catalogCount ?? '…'} записей`
             : limitBlocksProfile
-              ? `Лимит сохранения профиля на сегодня (${dailyLimit}/${dailyLimit}). Короткий поиск всё ещё можно — или смотри Каталог.`
+              ? `Лимит AI на сегодня (${dailyLimit}/${dailyLimit}). Короткий поиск всё ещё можно.`
               : isProfileSave
                 ? `Сохранение профиля: осталось ${remaining} из ${dailyLimit} на сегодня`
                 : 'Быстрый поиск — без лимита'}
         </p>
+        {limitBlocksProfile && !isAdmin && (
+          <button
+            type="button"
+            onClick={triggerPriceList}
+            className="text-[12px] font-semibold mt-2 underline"
+            style={{ color: 'var(--lumo-link)' }}
+          >
+            Смотреть тарифы →
+          </button>
+        )}
       </header>
 
       <div className="relative lumo-input-area mb-4">

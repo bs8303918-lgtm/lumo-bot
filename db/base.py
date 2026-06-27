@@ -51,8 +51,8 @@ elif settings.database_url.startswith("postgresql"):
     if ":6543" in settings.database_url:
         engine_kwargs["poolclass"] = NullPool
     else:
-        engine_kwargs["pool_size"] = 5
-        engine_kwargs["max_overflow"] = 5
+        engine_kwargs["pool_size"] = 10
+        engine_kwargs["max_overflow"] = 10
 
 engine = create_async_engine(settings.database_url, **engine_kwargs)
 

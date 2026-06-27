@@ -1,12 +1,14 @@
+import asyncio
 import json
 import re
 from datetime import datetime, timedelta, timezone
 
 from urllib.parse import urlparse, urlunparse
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
@@ -81,6 +83,14 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    @staticmethod
+    def _is_lock_timeout(exc: DBAPIError) -> bool:
+        orig = exc.orig
+        if orig is not None and "LockNotAvailable" in type(orig).__name__:
+            return True
+        msg = str(exc).lower()
+        return "lock timeout" in msg or "locknotavailable" in msg
+
     async def get_by_telegram_id(self, telegram_id: int) -> User | None:
         result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
         return result.scalar_one_or_none()
@@ -89,15 +99,7 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
-    async def get_or_create(self, telegram_id: int, username: str | None = None) -> tuple[User, bool]:
-        user = await self.get_by_telegram_id(telegram_id)
-        if user:
-            if username and user.username != username:
-                user.username = username
-            if not user.notifications_enabled:
-                user.notifications_enabled = True
-            return user, False
-
+    async def _get_or_create_once(self, telegram_id: int, username: str | None = None) -> tuple[User, bool]:
         values = {
             "telegram_id": telegram_id,
             "username": username,
@@ -110,29 +112,57 @@ class UserRepository:
                 .on_conflict_do_nothing(index_elements=["telegram_id"])
                 .returning(User.id)
             )
-        else:
-            insert_stmt = (
-                pg_insert(User)
-                .values(**values)
-                .on_conflict_do_nothing(index_elements=["telegram_id"])
-                .returning(User.id)
+            result = await self.session.execute(insert_stmt)
+            new_id = result.scalar_one_or_none()
+            created = new_id is not None
+            if created:
+                user = await self.get_by_id(new_id)
+            else:
+                user = await self.get_by_telegram_id(telegram_id)
+            if not user:
+                raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
+            if username and user.username != username:
+                user.username = username
+            if not user.notifications_enabled:
+                user.notifications_enabled = True
+            await self.session.commit()
+            return user, created
+
+        insert = pg_insert(User).values(**values)
+        stmt = (
+            insert.on_conflict_do_update(
+                index_elements=["telegram_id"],
+                set_={
+                    "username": func.coalesce(insert.excluded.username, User.username),
+                    "notifications_enabled": True,
+                },
             )
-
-        result = await self.session.execute(insert_stmt)
-        new_id = result.scalar_one_or_none()
-        if new_id is not None:
-            user = await self.get_by_id(new_id)
-            if user:
-                return user, True
-
-        user = await self.get_by_telegram_id(telegram_id)
+            .returning(User.id, text("(xmax = 0) AS is_insert"))
+        )
+        result = await self.session.execute(stmt)
+        row = result.one()
+        user = await self.get_by_id(row.id)
         if not user:
             raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
-        if username and user.username != username:
-            user.username = username
-        if not user.notifications_enabled:
-            user.notifications_enabled = True
-        return user, False
+        # Commit immediately so concurrent /start or Mini App auth do not wait on lock_timeout.
+        await self.session.commit()
+        return user, bool(row.is_insert)
+
+    async def get_or_create(self, telegram_id: int, username: str | None = None) -> tuple[User, bool]:
+        last_error: DBAPIError | None = None
+        for attempt in range(4):
+            try:
+                return await self._get_or_create_once(telegram_id, username)
+            except DBAPIError as exc:
+                await self.session.rollback()
+                if self._is_lock_timeout(exc) and attempt < 3:
+                    last_error = exc
+                    await asyncio.sleep(0.05 * (2**attempt))
+                    continue
+                raise
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
 
     async def set_notifications_enabled(self, user_id: int, enabled: bool) -> None:
         user = await self.get_by_id(user_id)

@@ -6,7 +6,13 @@ from bot.app import create_dispatcher
 from bot.instance import close_bot, create_bot
 from config import get_settings
 from db.base import Base, async_session_factory, engine
-from db.migrations import ensure_catalog_columns, ensure_raw_message_columns, ensure_user_columns
+from db.migrations import (
+    ensure_catalog_columns,
+    ensure_catalog_multi_per_message,
+    ensure_raw_message_columns,
+    ensure_subscription_columns,
+    ensure_user_columns,
+)
 from llm.client import LLMClient
 from llm.processor import LLMProcessor
 from logging_setup import setup_logging
@@ -39,6 +45,8 @@ async def init_database() -> None:
     await ensure_user_columns()
     await ensure_raw_message_columns()
     await ensure_catalog_columns()
+    await ensure_catalog_multi_per_message()
+    await ensure_subscription_columns()
 
     async with async_session_factory() as session:
         from sqlalchemy import select

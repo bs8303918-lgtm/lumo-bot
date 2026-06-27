@@ -85,7 +85,10 @@ export async function apiFetch(path, options = {}) {
         'API недоступен. Проверь Railway и переменную VITE_API_URL на Vercel.'
       );
     }
-    throw new Error(data.detail || `HTTP ${res.status}`);
+    const err = new Error(data.detail || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.showPricing = res.status === 429 || res.headers.get('X-Lumo-Show-Pricing') === '1';
+    throw err;
   }
   return data;
 }

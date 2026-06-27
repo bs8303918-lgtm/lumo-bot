@@ -445,6 +445,26 @@ class OpportunityCatalogRepository:
             fresh = [e for e in fresh if wanted & set(entry_all_tags(e))]
         return fresh
 
+    async def list_all_public_active(
+        self,
+        *,
+        max_rows: int = 5000,
+    ) -> list[CatalogOpportunity]:
+        """All active catalog rows (for Startify export — no user channel filter)."""
+        result = await self.session.execute(
+            select(CatalogOpportunity)
+            .options(joinedload(CatalogOpportunity.raw_message))
+            .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
+            .where(CatalogOpportunity.is_active.is_(True))
+            .where(CatalogOpportunity.opportunity_type != "другое")
+            .order_by(CatalogOpportunity.classified_at.desc())
+            .limit(max_rows)
+        )
+        return filter_fresh_entries(
+            list(result.scalars().unique().all()),
+            max_age_days_no_deadline=self.no_deadline_max_age_days,
+        )
+
     async def get_active_for_domain(
         self,
         user_id: int,

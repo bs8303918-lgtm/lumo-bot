@@ -32,7 +32,7 @@ from db.repositories.users import MatchRepository, MessageRepository, SystemStat
 from services.analytics import track
 from services.notification_service import NotificationService
 from services.opportunity_catalog import OpportunityCatalogService
-from services.community_broadcast import send_community_invite_to_user
+from bot.background import schedule_community_invite
 
 router = Router()
 
@@ -127,7 +127,7 @@ async def process_interest(message: Message, state: FSMContext, session: AsyncSe
         )
         await safe_answer(message, get_no_posts_yet_onboarding(), reply_markup=main_menu_keyboard())
         if was_first_interest:
-            await send_community_invite_to_user(user)
+            schedule_community_invite(user)
         return
 
     await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -198,7 +198,7 @@ async def process_interest(message: Message, state: FSMContext, session: AsyncSe
             ),
             reply_markup=reply_markup,
         )
-        await send_community_invite_to_user(user)
+        schedule_community_invite(user)
     else:
         await safe_answer(
             message,

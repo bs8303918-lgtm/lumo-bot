@@ -191,7 +191,7 @@ class LLMClient:
 
     async def classify_opportunity(self, message_text: str) -> tuple[dict | None, str | None]:
         prompt = CLASSIFICATION_PROMPT.format(message_text=message_text, today=format_today())
-        return await self._json_prompt(prompt, max_tokens=768)
+        return await self._json_prompt(prompt, max_tokens=1536)
 
     async def extract_interest_categories(self, interest_query: str) -> tuple[list[str], str | None]:
         prompt = INTEREST_CATEGORIES_PROMPT.format(interest_query=interest_query)

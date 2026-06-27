@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import AdminFilter
 from bot.welcome import send_welcome
-from bot.webapp_setup import sync_user_menu_button, setup_telegram_webapp
+from bot.webapp_setup import reset_menu_cache, setup_telegram_webapp, sync_user_menu_button
 from db.repositories.channels import ChannelRepository
 from db.repositories.opportunity_catalog import OpportunityCatalogRepository
 from db.repositories.users import EventRepository, MatchRepository, SystemStateRepository
@@ -242,8 +242,9 @@ async def cmd_sync_webapp(message: Message) -> None:
         )
         return
 
-    await setup_telegram_webapp(message.bot)
-    await sync_user_menu_button(message.bot, message.chat.id)
+    reset_menu_cache()
+    await setup_telegram_webapp(message.bot, force=True)
+    await sync_user_menu_button(message.bot, message.chat.id, force=True)
 
     await message.answer(
         "✅ Menu Button обновлён\n\n"

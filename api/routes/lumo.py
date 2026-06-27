@@ -20,6 +20,7 @@ from db.repositories.users import EventRepository
 from services.ai_search_limit import ai_search_usage, enforce_ai_search_limit
 from services.interest_matcher import entry_all_tags, resolve_catalog_types
 from services.opportunity_catalog import catalog_repo
+from services.subscription import public_plans, subscription_status
 from services.webapp_catalog import (
     SEARCH_SUGGESTIONS,
     build_category_list,
@@ -83,7 +84,15 @@ async def lumo_meta() -> dict:
         "maxUserChannels": settings.max_user_channels,
         "aiSearchDailyLimit": settings.ai_search_daily_limit,
         "searchSuggestions": SEARCH_SUGGESTIONS,
+        "subscriptionsEnforced": settings.subscriptions_enforced,
+        "subscriptionPreviewEnabled": settings.subscription_preview_enabled,
+        "startifyCheckoutUrl": settings.startify_checkout_url.strip() or None,
     }
+
+
+@router.get("/lumo/subscription-plans")
+async def lumo_subscription_plans() -> dict:
+    return {"plans": public_plans(), "freemiumAiLimit": get_settings().ai_search_daily_limit}
 
 
 @router.get("/users/me")
@@ -94,7 +103,7 @@ async def get_me(
     settings = get_settings()
     categories = parse_interest_categories(user.interest_categories_json)
     is_admin = settings.is_admin(user.telegram_id)
-    search = await ai_search_usage(session, user.id, telegram_id=user.telegram_id)
+    search = await ai_search_usage(session, user.id, telegram_id=user.telegram_id, user=user)
     catalog_count = await catalog_repo(session).count_active_for_user(user.id)
     return {
         "telegramId": user.telegram_id,
@@ -107,6 +116,7 @@ async def get_me(
         "aiSearchLimit": search["limit"],
         "aiSearchRemaining": search["remaining"],
         "catalogCount": catalog_count,
+        "subscription": subscription_status(user),
     }
 
 

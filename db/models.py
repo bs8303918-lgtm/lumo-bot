@@ -26,6 +26,11 @@ class User(Base):
     interest_categories_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     interest_preferences_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    partner_source: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    partner_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    tariff_plan: Mapped[str] = mapped_column(String(32), default="freemium", server_default="freemium")
+    tariff_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    kaspi_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -104,8 +109,8 @@ class RawMessage(Base):
     monitored_channel: Mapped["MonitoredChannel"] = relationship(back_populates="raw_messages")
     processed_pairs: Mapped[list["ProcessedPair"]] = relationship(back_populates="raw_message")
     sent_matches: Mapped[list["SentMatch"]] = relationship(back_populates="raw_message")
-    catalog_opportunity: Mapped["CatalogOpportunity | None"] = relationship(
-        back_populates="raw_message", uselist=False
+    catalog_opportunities: Mapped[list["CatalogOpportunity"]] = relationship(
+        back_populates="raw_message", cascade="all, delete-orphan"
     )
 
 
@@ -152,7 +157,7 @@ class CatalogOpportunity(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     raw_message_id: Mapped[int] = mapped_column(
-        ForeignKey("raw_messages.id", ondelete="CASCADE"), unique=True, index=True
+        ForeignKey("raw_messages.id", ondelete="CASCADE"), index=True
     )
     opportunity_type: Mapped[str] = mapped_column(String(64), index=True)
     tags_json: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -166,7 +171,7 @@ class CatalogOpportunity(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
     classified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    raw_message: Mapped["RawMessage"] = relationship(back_populates="catalog_opportunity")
+    raw_message: Mapped["RawMessage"] = relationship(back_populates="catalog_opportunities")
 
 
 class Event(Base):

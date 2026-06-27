@@ -5,8 +5,9 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.background import schedule_community_invite
 from bot.keyboards import community_join_inline, main_menu_keyboard, webapp_open_inline
-from bot.webapp_setup import sync_user_menu_button, setup_telegram_webapp
+from bot.webapp_setup import schedule_menu_sync
 from bot.texts import get_community_invite_text, get_help_text
 from bot.welcome import send_welcome
 from config import get_settings
@@ -14,6 +15,7 @@ from db.repositories.channels import ChannelRepository
 from db.repositories.users import SystemStateRepository, UserRepository
 from analytics.event_types import RETURNING_START, USER_REGISTERED, WELCOME_SHOWN
 from services.analytics import track
+from services.partner_attribution import apply_start_payload
 
 router = Router()
 
@@ -105,6 +107,10 @@ async def cmd_start(message: Message, session: AsyncSession) -> None:
         message.from_user.id,
         message.from_user.username,
     )
+    start_payload = None
+    if message.text and " " in message.text.strip():
+        start_payload = message.text.strip().split(maxsplit=1)[1]
+    await apply_start_payload(session, user, start_payload)
     if created:
         await track(
             session,
@@ -127,8 +133,7 @@ async def cmd_start(message: Message, session: AsyncSession) -> None:
             username=message.from_user.username,
             telegram_id=message.from_user.id,
         )
-        await setup_telegram_webapp(message.bot)
-        await send_welcome(message)
+        await send_welcome(message, user=user)
         return
 
     await track(
@@ -138,9 +143,6 @@ async def cmd_start(message: Message, session: AsyncSession) -> None:
         username=message.from_user.username,
         telegram_id=message.from_user.id,
     )
-
-    await setup_telegram_webapp(message.bot)
-    await sync_user_menu_button(message.bot, message.chat.id)
 
     interest_text = interest or "не задан — /set_interest"
     inline = webapp_open_inline()
@@ -155,6 +157,9 @@ async def cmd_start(message: Message, session: AsyncSession) -> None:
     )
     if inline:
         await message.answer("Меню:", reply_markup=main_menu_keyboard())
+
+    schedule_menu_sync(message.bot, message.chat.id)
+    schedule_community_invite(user)
 
 
 @router.message(Command("help"))

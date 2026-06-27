@@ -3,7 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from bot.keyboards import main_menu_keyboard, webapp_open_inline
-from bot.webapp_setup import sync_user_menu_button, setup_telegram_webapp
+from bot.webapp_setup import schedule_menu_sync
 from config import get_settings
 
 router = Router()
@@ -15,8 +15,6 @@ async def cmd_app(message: Message) -> None:
     url = settings.resolved_webapp_url
 
     if url:
-        await setup_telegram_webapp(message.bot)
-        await sync_user_menu_button(message.bot, message.chat.id)
         inline = webapp_open_inline()
         await message.answer(
             "📱 Mini App\n\n"
@@ -29,6 +27,7 @@ async def cmd_app(message: Message) -> None:
         )
         if inline:
             await message.answer("Меню:", reply_markup=main_menu_keyboard())
+        schedule_menu_sync(message.bot, message.chat.id, force=True)
         return
 
     await message.answer(
@@ -51,8 +50,6 @@ async def cmd_link(message: Message) -> None:
         await message.answer("URL не задан. Добавь PUBLIC_BASE_URL в .env и перезапусти бота.")
         return
     plain = url.split("?", 1)[0]
-    await setup_telegram_webapp(message.bot)
-    await sync_user_menu_button(message.bot, message.chat.id)
     await message.answer(
         "Если видишь <code>ser-penalties...</code> — это кэш Telegram.\n\n"
         "1. Закрой Mini App крестиком\n"
@@ -64,3 +61,4 @@ async def cmd_link(message: Message) -> None:
             inline_keyboard=[[InlineKeyboardButton(text="🔗 Открыть Lumo", url=plain)]]
         ),
     )
+    schedule_menu_sync(message.bot, message.chat.id, force=True)

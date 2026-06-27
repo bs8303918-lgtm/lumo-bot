@@ -9,6 +9,7 @@ from db.models import CatalogOpportunity
 from db.repositories.opportunity_catalog import OpportunityCatalogRepository
 from db.repositories.users import EventRepository, MatchRepository, UserRepository
 from llm.client import LLMClient
+from llm.classification_utils import expand_classification_items
 from llm.json_utils import coerce_llm_dict
 from llm.spam_filter import is_invalid_opportunity_extraction, is_likely_spam_or_ad
 from services.interest_matcher import (
@@ -123,11 +124,17 @@ class OpportunityCatalogService:
                     )
                     continue
 
+                items = expand_classification_items(data)
+                created_entries = []
                 async with async_session_factory() as session:
                     repo = catalog_repo(session)
-                    entry = await repo.create(raw_message, channel, data)
+                    for item in items:
+                        entry = await repo.create(raw_message, channel, item)
+                        created_entries.append(entry)
                     await session.commit()
-                    final = {
+
+                finals = [
+                    {
                         "is_opportunity": entry.is_active,
                         "title": entry.title,
                         "type": entry.opportunity_type,
@@ -136,22 +143,32 @@ class OpportunityCatalogService:
                         "requirements": entry.requirements,
                         "application_url": entry.application_url,
                     }
-                    await record_classify(
-                        raw_message,
-                        channel,
-                        llm_output=data,
-                        final_output=final,
-                        source="llm",
-                        model_name=self.settings.llm_model_name,
-                        catalog_id=entry.id,
-                    )
+                    for entry in created_entries
+                ]
+                primary = created_entries[0] if created_entries else None
+                await record_classify(
+                    raw_message,
+                    channel,
+                    llm_output=data,
+                    final_output={
+                        "items": finals,
+                        "count": len(finals),
+                        "is_opportunity": any(f["is_opportunity"] for f in finals),
+                    },
+                    source="llm",
+                    model_name=self.settings.llm_model_name,
+                    catalog_id=primary.id if primary else None,
+                    extra_meta={"split_count": len(finals)},
+                )
+                for entry in created_entries:
                     if entry.is_active:
                         new_ids.append(entry.id)
-                        logger.info(
-                            "Catalog: classified message %s as %s",
-                            raw_message.id,
-                            entry.opportunity_type,
-                        )
+                if any(e.is_active for e in created_entries):
+                    logger.info(
+                        "Catalog: classified message %s into %d item(s)",
+                        raw_message.id,
+                        sum(1 for e in created_entries if e.is_active),
+                    )
             except Exception as exc:
                 logger.warning("Catalog: ошибка message %s — %s", raw_message.id, exc)
                 continue
