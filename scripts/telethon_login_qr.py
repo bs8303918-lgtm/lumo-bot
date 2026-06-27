@@ -1,6 +1,7 @@
 """Вход в Telethon через QR-код (без SMS). Run: python scripts/telethon_login_qr.py"""
 import asyncio
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -39,6 +40,34 @@ def show_qr(url: str) -> None:
     print("Или вставь tg:// ссылку на https://www.qr-code-generator.com/")
 
 
+def _railway_lock_help() -> None:
+    print(
+        "\nНа Railway сессия /data/lumo_session.session занята работающим main.py.\n"
+        "В этом же Shell выполни:\n"
+        "  pkill -f 'python main.py' || pkill -f uvicorn\n"
+        "  sleep 3\n"
+        "  python scripts/telethon_login_qr.py\n"
+        "После успешного входа — Redeploy сервиса в панели Railway.\n"
+    )
+
+
+async def connect_client(client, *, attempts: int = 15, delay: float = 2.0) -> None:
+    for attempt in range(attempts):
+        try:
+            await client.connect()
+            return
+        except sqlite3.OperationalError as exc:
+            if "database is locked" not in str(exc).lower():
+                raise
+            if attempt == 0:
+                print("database is locked — сессию держит другой процесс (main.py)...")
+            if attempt >= attempts - 1:
+                _railway_lock_help()
+                raise
+            print(f"  жду {delay}s, попытка {attempt + 2}/{attempts}...")
+            await asyncio.sleep(delay)
+
+
 async def main() -> None:
     settings = get_settings()
     api_hash = (settings.telegram_api_hash or "").strip()
@@ -58,8 +87,10 @@ async def main() -> None:
     reset_client()
     session_path = prepare_telethon_session_path()
     print(f"Сессия Telethon: {session_path}.session")
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        print("Railway: если будет database is locked — см. инструкцию в конце или ниже.\n")
     client = get_telethon_client()
-    await client.connect()
+    await connect_client(client)
 
     if await client.is_user_authorized():
         print("Сессия уже активна — Telethon залогинен.")
@@ -106,7 +137,10 @@ async def main() -> None:
 
     await client.disconnect()
     print("\nГотово! Сессия сохранена.")
-    print("Теперь запускайте: python main.py")
+    if os.environ.get("RAILWAY_ENVIRONMENT"):
+        print("Redeploy сервис lumo-bot в Railway, чтобы бот снова запустился с новой сессией.")
+    else:
+        print("Теперь запускайте: python main.py")
 
 
 if __name__ == "__main__":
