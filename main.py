@@ -198,7 +198,11 @@ async def main() -> None:
     bot = None
     try:
         await init_database()
-        seeded = await seed_channels_from_file()
+        try:
+            seeded = await seed_channels_from_file()
+        except Exception as exc:
+            logger.warning("Seed channels skipped: %s", exc)
+            seeded = 0
         logger.info("Seed channels loaded: %d", seeded)
 
         if settings.auto_build_webapp and settings.serve_mini_app:

@@ -10,7 +10,7 @@ import qrcode
 from telethon.errors import SessionPasswordNeededError
 
 from config import get_settings
-from monitor.telethon_client import get_telethon_client, reset_client
+from monitor.telethon_client import get_telethon_client, prepare_telethon_session_path, reset_client
 
 
 QR_PATH = Path(__file__).resolve().parent.parent / "telethon_qr.png"
@@ -56,6 +56,8 @@ async def main() -> None:
         return
 
     reset_client()
+    session_path = prepare_telethon_session_path()
+    print(f"Сессия Telethon: {session_path}.session")
     client = get_telethon_client()
     await client.connect()
 

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import sqlite3
+from pathlib import Path
 
 from telethon import TelegramClient
 from telethon.errors import AuthKeyUnregisteredError, SessionPasswordNeededError
@@ -21,6 +22,31 @@ def telethon_credentials_configured() -> bool:
     return bool(settings.telegram_api_id and settings.telegram_api_hash.strip())
 
 
+def prepare_telethon_session_path() -> Path:
+    """Ensure session directory exists; fall back to /app/data on Railway if /data is missing."""
+    settings = get_settings()
+    path = settings.resolved_telethon_session_path
+    parent = path.parent
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+        return path
+    except OSError:
+        fallback = Path("/app/data/lumo_session")
+        try:
+            fallback.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Cannot create Telethon session directory ({parent} or {fallback.parent})"
+            ) from exc
+        logger.warning(
+            "Telethon session dir %s unavailable — using %s. "
+            "For persistent session: Railway Volume mount /data + TELETHON_SESSION_PATH=/data/lumo_session",
+            parent,
+            fallback,
+        )
+        return fallback
+
+
 def get_telethon_client() -> TelegramClient:
     global _client
     if _client is None:
@@ -30,8 +56,9 @@ def get_telethon_client() -> TelegramClient:
                 "TELEGRAM_API_ID и TELEGRAM_API_HASH не заданы. "
                 "На Railway: сервис lumo-bot → Variables → добавьте обе переменные → Redeploy."
             )
+        session_path = prepare_telethon_session_path()
         _client = TelegramClient(
-            str(settings.resolved_telethon_session_path),
+            str(session_path),
             settings.telegram_api_id,
             settings.telegram_api_hash,
         )
@@ -97,8 +124,12 @@ async def require_authorized_client() -> TelegramClient | None:
         client = await ensure_telethon_connected()
         if await client.is_user_authorized():
             return client
-    except AuthKeyUnregisteredError:
+    except (AuthKeyUnregisteredError, TelethonCredentialsMissingError):
         pass
+    except (sqlite3.OperationalError, OSError, RuntimeError) as exc:
+        logger.warning("Telethon unavailable: %s", exc)
+    except Exception as exc:
+        logger.warning("Telethon unavailable: %s", exc)
     return None
 
 
