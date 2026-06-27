@@ -93,7 +93,7 @@ AUTO_BUILD_WEBAPP=false
 
 > Если `LUMO_MODE=worker` — на Railway код **сам переключит на full** (бот + API вместе).
 
-Полный список + LLM + Vercel URLs:
+Полный список — в **`deploy/railway.env.example`** (LLM, Vercel URLs, API).
 
 ---
 
