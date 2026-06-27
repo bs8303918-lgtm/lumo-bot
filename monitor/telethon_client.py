@@ -12,10 +12,24 @@ logger = logging.getLogger(__name__)
 _client: TelegramClient | None = None
 
 
+class TelethonCredentialsMissingError(ValueError):
+    """API ID / Hash not set in environment (e.g. missing Railway Variables)."""
+
+
+def telethon_credentials_configured() -> bool:
+    settings = get_settings()
+    return bool(settings.telegram_api_id and settings.telegram_api_hash.strip())
+
+
 def get_telethon_client() -> TelegramClient:
     global _client
     if _client is None:
         settings = get_settings()
+        if not settings.telegram_api_id or not settings.telegram_api_hash.strip():
+            raise TelethonCredentialsMissingError(
+                "TELEGRAM_API_ID и TELEGRAM_API_HASH не заданы. "
+                "На Railway: сервис lumo-bot → Variables → добавьте обе переменные → Redeploy."
+            )
         _client = TelegramClient(
             str(settings.resolved_telethon_session_path),
             settings.telegram_api_id,

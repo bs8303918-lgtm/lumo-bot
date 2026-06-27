@@ -74,7 +74,15 @@ Railway = **долгоживущий контейнер** (не serverless). П�
 
 ## 3. Variables (Railway → lumo-bot)
 
-Скопируй шаблон: **`deploy/railway.env.example`**
+В Railway **не нужен готовый шаблон** — любую переменную добавляешь сам:
+
+1. Сервис **lumo-bot** → вкладка **Variables**
+2. **+ New Variable** (или **Raw Editor** — вставить блок целиком)
+3. В поле **Name** вводишь имя вручную, например `TELETHON_SESSION_PATH`
+4. В **Value** — значение, например `/data/lumo_session`
+5. **Deploy** / **Redeploy** — без redeploy новые переменные не попадут в контейнер
+
+Шаблон для копирования: **`deploy/railway.env.example`**
 
 **Минимум для бота + API на Railway:**
 

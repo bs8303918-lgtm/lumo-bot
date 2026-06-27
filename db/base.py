@@ -12,11 +12,15 @@ class Base(DeclarativeBase):
 
 def _postgres_connect_args(database_url: str) -> dict:
     """asyncpg SSL + Supabase pooler quirks."""
+    import ssl
+
     args: dict = {}
     if "pooler.supabase.com" in database_url or ":6543" in database_url:
-        args["ssl"] = True
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        args["ssl"] = ctx
         args["statement_cache_size"] = 0
-        args["prepared_statement_cache_size"] = 0
     elif "railway.internal" in database_url:
         pass
     else:

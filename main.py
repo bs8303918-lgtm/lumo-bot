@@ -22,8 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 async def init_database() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as exc:
+        settings = get_settings()
+        db_hint = settings.database_url.split("@")[-1] if "@" in settings.database_url else settings.database_url[:60]
+        logger.error(
+            "Database connection failed (%s). Check DATABASE_URL on Railway: "
+            "Supabase Transaction pooler :6543, user postgres.PROJECT_REF, redeploy after change. Host: %s",
+            type(exc).__name__,
+            db_hint,
+        )
+        raise
     await ensure_user_columns()
     await ensure_raw_message_columns()
     await ensure_catalog_columns()
@@ -96,8 +107,20 @@ async def run_bot(bot) -> None:
 
 async def run_posted_at_backfill() -> None:
     """Fill missing post dates in the background — must not block bot/API startup."""
+    from monitor.telethon_client import telethon_credentials_configured
+
+    warned_missing = False
     while True:
         try:
+            if not telethon_credentials_configured():
+                if not warned_missing:
+                    logger.warning(
+                        "posted_at backfill skipped: TELEGRAM_API_ID / TELEGRAM_API_HASH not set"
+                    )
+                    warned_missing = True
+                await asyncio.sleep(600)
+                continue
+
             from services.backfill_posted_at import backfill_posted_at
 
             updated = await backfill_posted_at(limit=25)
@@ -160,6 +183,16 @@ async def main() -> None:
     logger.info("Starting Lumo (mode=%s, railway=%s)...", mode, settings.is_railway)
     if settings.is_railway and settings.is_bot_polling:
         logger.info("Telegram bot polling enabled on Railway")
+    if settings.is_worker:
+        from monitor.telethon_client import telethon_credentials_configured
+
+        if telethon_credentials_configured():
+            logger.info("Telethon credentials: configured (api_id=%s)", settings.telegram_api_id)
+        else:
+            logger.error(
+                "Telethon credentials MISSING — monitor/backfill disabled until you set "
+                "TELEGRAM_API_ID and TELEGRAM_API_HASH in Railway Variables and redeploy"
+            )
     logger.info("LLM provider: %s, model: %s", settings.llm_provider, settings.llm_model_name)
 
     bot = None
