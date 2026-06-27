@@ -1,4 +1,5 @@
 """Проверка env на Railway / локально. Run: python scripts/check_railway_env.py"""
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -36,6 +37,24 @@ def main() -> None:
     print(f"  database_url starts with: {settings.database_url[:40]}...")
     print(f"  lumo_mode: {settings.lumo_mode}")
     print(f"  is_railway: {settings.is_railway}")
+
+    session_file = Path(str(settings.resolved_telethon_session_path) + ".session")
+    print("\n=== Telethon session ===")
+    print(f"  path: {session_file}")
+    print(f"  exists: {session_file.is_file()}")
+    if session_file.is_file():
+        print(f"  size: {session_file.stat().st_size} bytes")
+
+    async def _auth() -> bool:
+        from monitor.telethon_client import telethon_is_authorized
+
+        return await telethon_is_authorized()
+
+    try:
+        authorized = asyncio.run(_auth())
+        print(f"  authorized: {authorized}")
+    except Exception as exc:
+        print(f"  authorized: error ({exc})")
 
 
 if __name__ == "__main__":

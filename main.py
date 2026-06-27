@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pathlib import Path
 
 from bot.app import create_dispatcher
 from bot.instance import close_bot, create_bot
@@ -188,6 +189,18 @@ async def main() -> None:
 
         if telethon_credentials_configured():
             logger.info("Telethon credentials: configured (api_id=%s)", settings.telegram_api_id)
+            session_file = Path(str(settings.resolved_telethon_session_path) + ".session")
+            logger.info(
+                "Telethon session file: %s (exists=%s, size=%s bytes)",
+                session_file,
+                session_file.is_file(),
+                session_file.stat().st_size if session_file.is_file() else 0,
+            )
+            if settings.is_railway and not session_file.is_file():
+                logger.warning(
+                    "Telethon session missing on Volume — run: python scripts/telethon_login_qr.py "
+                    "(Volume mount /data, TELETHON_SESSION_PATH=/data/lumo_session)"
+                )
         else:
             logger.error(
                 "Telethon credentials MISSING — monitor/backfill disabled until you set "
