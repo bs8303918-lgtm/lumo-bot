@@ -1,4 +1,4 @@
-# --- Lumo API worker (Mini App hosted separately on Vercel) ---
+# Lumo on Railway: bot + API + monitor + LLM (Mini App on Vercel)
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
-ENV LUMO_MODE=worker
+ENV LUMO_MODE=full
 ENV AUTO_BUILD_WEBAPP=false
 ENV SERVE_MINI_APP=false
 ENV API_ENABLED=true

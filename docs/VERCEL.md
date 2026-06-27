@@ -11,11 +11,12 @@ Telegram Open →  Vercel (React Mini App)
 
 ---
 
-## 1. Railway (API worker)
+## 1. Railway (API + bot)
 
 Переменные **дополнительно** к базовым из [RAILWAY.md](./RAILWAY.md):
 
 ```env
+LUMO_MODE=full
 SERVE_MINI_APP=false
 AUTO_BUILD_WEBAPP=false
 PUBLIC_BASE_URL=https://lumo-bot-production.up.railway.app
