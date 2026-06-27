@@ -37,6 +37,22 @@ from services.training_export import export_training_jsonl
 router = Router()
 
 
+@router.message(Command("monitor_now"), AdminFilter())
+async def cmd_monitor_now(message: Message) -> None:
+    """Один цикл мониторинга каналов (Telethon)."""
+    if not await telethon_is_authorized():
+        await message.answer("❌ Telethon не залогинен. Задай TELETHON_SESSION_STRING в Railway.")
+        return
+    await message.answer("⏳ Запускаю мониторинг каналов…")
+    from monitor.worker import MonitorWorker
+
+    try:
+        await MonitorWorker().run_cycle()
+        await message.answer("✅ Цикл мониторинга завершён. LLM обработает посты в течение ~20 мин.")
+    except Exception as exc:
+        await message.answer(f"❌ Ошибка мониторинга: {exc}")
+
+
 @router.message(Command("preview_welcome"), AdminFilter())
 async def cmd_preview_welcome(message: Message) -> None:
     """Скрытая команда — превью /start для новых пользователей."""
