@@ -1,8 +1,10 @@
 """Вход в Telethon через QR-код (без SMS). Run: python scripts/telethon_login_qr.py"""
 import asyncio
 import os
+import signal
 import sqlite3
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -40,13 +42,39 @@ def show_qr(url: str) -> None:
     print("Или вставь tg:// ссылку на https://www.qr-code-generator.com/")
 
 
+def stop_main_processes() -> int:
+    """Остановить main.py / uvicorn в этом контейнере (Railway Shell, без pkill)."""
+    my_pid = os.getpid()
+    killed = 0
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return 0
+
+    for entry in proc_root.iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid == my_pid:
+            continue
+        try:
+            cmdline = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "main.py" not in cmdline and not ("uvicorn" in cmdline and "api.app" in cmdline):
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+            print(f"  остановлен pid {pid}: {cmdline.strip()[:100]}")
+            killed += 1
+        except OSError as exc:
+            print(f"  не удалось остановить pid {pid}: {exc}")
+    return killed
+
+
 def _railway_lock_help() -> None:
     print(
-        "\nНа Railway сессия /data/lumo_session.session занята работающим main.py.\n"
-        "В этом же Shell выполни:\n"
-        "  pkill -f 'python main.py' || pkill -f uvicorn\n"
-        "  sleep 3\n"
-        "  python scripts/telethon_login_qr.py\n"
+        "\nСессия занята main.py. Запусти снова — скрипт сам остановит бот:\n"
+        "  python scripts/telethon_login_qr.py --stop-main\n"
         "После успешного входа — Redeploy сервиса в панели Railway.\n"
     )
 
@@ -69,6 +97,15 @@ async def connect_client(client, *, attempts: int = 15, delay: float = 2.0) -> N
 
 
 async def main() -> None:
+    if "--stop-main" in sys.argv or os.environ.get("RAILWAY_ENVIRONMENT"):
+        print("Останавливаю main.py перед Telethon login...")
+        n = stop_main_processes()
+        if n:
+            print(f"Остановлено процессов: {n}, жду 3 сек...\n")
+            time.sleep(3)
+        else:
+            print("main.py не найден (уже остановлен?)\n")
+
     settings = get_settings()
     api_hash = (settings.telegram_api_hash or "").strip()
     if not settings.telegram_api_id or not api_hash:
