@@ -287,27 +287,27 @@ class OpportunityCatalogService:
             )
         )[0]
 
-    async def notify_users_for_catalog_item(self, catalog_id: int) -> int:
+    async def notify_users_for_catalog_item(self, catalog_id: int) -> set[int]:
         """Новая запись в каталоге — только пользователям, у кого есть доступ к каналу."""
         async with async_session_factory() as session:
             repo = catalog_repo(session)
             pair = await repo.get_entry_with_channel(catalog_id)
             if not pair:
-                return 0
+                return set()
             entry, channel = pair
             if not entry.is_active:
-                return 0
+                return set()
             from services.catalog_freshness import is_catalog_entry_fresh
 
             if not is_catalog_entry_fresh(entry):
-                return 0
+                return set()
             user_repo = UserRepository(session)
             users = await user_repo.get_notification_recipients(
                 channel.channel_identifier,
                 is_seed=channel.is_seed,
             )
 
-        sent = 0
+        enqueued: set[int] = set()
         for user in users:
             if not user.notifications_enabled:
                 continue
@@ -348,13 +348,7 @@ class OpportunityCatalogService:
                 entry,
                 auto_flush=False,
             ):
-                flushed = await self.notification_service.flush_user_digest(
-                    user.id,
-                    flush_remaining=True,
-                    max_items=1,
-                )
-                if flushed:
-                    sent += 1
+                enqueued.add(user.id)
                 await record_match(
                     user_id=user.id,
                     interest_query=user.interest_query or "",
@@ -363,6 +357,22 @@ class OpportunityCatalogService:
                     score=relevance_score(user.interest_query or "", entry),
                     source="catalog_notify",
                 )
+        return enqueued
+
+    async def flush_pending_digests(self, user_ids: set[int]) -> int:
+        """Отправить накопленные карточки одной подборкой (до notification_digest_max_flush)."""
+        if not user_ids:
+            return 0
+        cap = self.settings.notification_digest_max_flush
+        sent = 0
+        for user_id in user_ids:
+            if await digest_cooldown_active(user_id):
+                continue
+            sent += await self.notification_service.flush_user_digest(
+                user_id,
+                flush_remaining=True,
+                max_items=cap,
+            )
         return sent
 
     async def _disable_notifications(self, user_id: int) -> None:

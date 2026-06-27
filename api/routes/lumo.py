@@ -28,6 +28,7 @@ from services.webapp_catalog import (
     match_opportunities_for_user,
     plural_opportunities,
     serialize_opportunity,
+    sort_opportunities_by_deadline,
 )
 
 router = APIRouter(tags=["lumo"])
@@ -216,13 +217,14 @@ async def lumo_categories(
 async def lumo_opportunities(
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    limit: int = Query(default=40, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> dict:
     repo = catalog_repo(session)
     types = ALL_TYPES if not category or category == "all" else [category]
-    items = await repo.get_active_for_user(user.id, types, limit=limit * 2)
+    items = await repo.list_all_active_for_user(user.id, types)
     unique = dedupe_opportunities(items)
 
     if q:
@@ -236,7 +238,16 @@ async def lumo_opportunities(
             or any(needle in tag for tag in entry_all_tags(e))
         ]
 
-    return [serialize_opportunity(e) for e in unique[:limit]]
+    sorted_items = sort_opportunities_by_deadline(unique)
+    total = len(sorted_items)
+    page = sorted_items[offset : offset + limit]
+    return {
+        "items": [serialize_opportunity(e) for e in page],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "hasMore": offset + limit < total,
+    }
 
 
 @router.get("/lumo/opportunities/{item_id}")

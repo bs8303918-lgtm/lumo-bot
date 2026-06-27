@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import re
 
+from datetime import timezone
+
 from db.models import CatalogOpportunity
+from llm.deadline import parse_deadline
 from services.catalog_dedup import catalog_dedupe_keys
-from services.catalog_freshness import is_unknown_deadline
+from services.catalog_freshness import is_unknown_deadline, message_posted_at
 from services.interest_matcher import (
     CATEGORY_DISPLAY,
     entry_all_tags,
@@ -73,6 +76,31 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
         "messageLink": msg_link,
         "isPremium": bool(app_url),
     }
+
+
+def _entry_anchor_date(entry: CatalogOpportunity):
+    posted = message_posted_at(entry)
+    return posted.date() if posted else None
+
+
+def sort_opportunities_by_deadline(entries: list[CatalogOpportunity]) -> list[CatalogOpportunity]:
+    """Soonest deadline first; entries without a date follow, newest classified first."""
+
+    def sort_key(entry: CatalogOpportunity) -> tuple[int, float, float]:
+        anchor = _entry_anchor_date(entry)
+        parsed = parse_deadline(entry.deadline, anchor_date=anchor)
+        if parsed is not None:
+            return (0, float(parsed.toordinal()), 0.0)
+        classified = entry.classified_at
+        if classified is None:
+            ts = 0.0
+        else:
+            if classified.tzinfo is None:
+                classified = classified.replace(tzinfo=timezone.utc)
+            ts = classified.timestamp()
+        return (1, 0.0, -ts)
+
+    return sorted(entries, key=sort_key)
 
 
 def dedupe_opportunities(entries: list[CatalogOpportunity]) -> list[CatalogOpportunity]:

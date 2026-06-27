@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, Plus, Search } from 'lucide-react';
 import { apiFetch, haptic } from '../api';
 import OpportunityCard from './OpportunityCard';
 import AddOpportunityModal from './AddOpportunityModal';
+
+const PAGE_SIZE = 20;
 
 export default function CatalogView({ onOpenItem }) {
   const [categories, setCategories] = useState([]);
@@ -10,29 +12,74 @@ export default function CatalogView({ onOpenItem }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
+  const loadMoreRef = useRef(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     apiFetch('/lumo/categories').then(setCategories).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (activeCategory !== 'all') params.set('category', activeCategory);
-      if (searchQuery.trim()) params.set('q', searchQuery.trim());
-      const qs = params.toString();
-      try {
-        setItems(await apiFetch(`/lumo/opportunities${qs ? `?${qs}` : ''}`));
-      } catch {
+  const fetchPage = useCallback(async (offset, append) => {
+    const requestId = ++requestIdRef.current;
+    if (append) setLoadingMore(true);
+    else setLoading(true);
+
+    const params = new URLSearchParams();
+    params.set('limit', String(PAGE_SIZE));
+    params.set('offset', String(offset));
+    if (activeCategory !== 'all') params.set('category', activeCategory);
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+
+    try {
+      const data = await apiFetch(`/lumo/opportunities?${params}`);
+      if (requestId !== requestIdRef.current) return;
+
+      const nextItems = data.items || [];
+      setItems((prev) => (append ? [...prev, ...nextItems] : nextItems));
+      setTotal(data.total ?? nextItems.length);
+      setHasMore(Boolean(data.hasMore));
+    } catch {
+      if (requestId !== requestIdRef.current) return;
+      if (!append) {
         setItems([]);
-      } finally {
-        setLoading(false);
+        setTotal(0);
+        setHasMore(false);
       }
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    }
+  }, [activeCategory, searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchPage(0, false);
     }, 200);
     return () => clearTimeout(timer);
-  }, [activeCategory, searchQuery]);
+  }, [fetchPage]);
+
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasMore || loading || loadingMore) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          fetchPage(items.length, true);
+        }
+      },
+      { root: null, rootMargin: '120px', threshold: 0 },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [fetchPage, hasMore, items.length, loading, loadingMore]);
 
   const visibleCategories = categories.filter((cat) => cat.type === 'all' || cat.count > 0);
 
@@ -43,6 +90,7 @@ export default function CatalogView({ onOpenItem }) {
           <h1 className="text-[22px] font-bold mb-2">Каталог</h1>
           <p className="text-[13px]" style={{ color: 'var(--lumo-text-muted)' }}>
             Актуальные возможности из твоих каналов
+            {!loading && total > 0 ? ` · ${total}` : ''}
           </p>
         </div>
         <button
@@ -107,6 +155,23 @@ export default function CatalogView({ onOpenItem }) {
           ))}
         </div>
       )}
+
+      {!loading && items.length > 0 && (
+        <div ref={loadMoreRef} className="py-6 flex justify-center min-h-[48px]">
+          {loadingMore && (
+            <div className="flex items-center gap-2 text-[13px]" style={{ color: 'var(--lumo-text-muted)' }}>
+              <Loader2 size={16} className="animate-spin" />
+              Загрузка…
+            </div>
+          )}
+          {!loadingMore && !hasMore && (
+            <p className="text-[12px]" style={{ color: 'var(--lumo-text-muted)' }}>
+              Все {total} {total === 1 ? 'возможность' : total < 5 ? 'возможности' : 'возможностей'}
+            </p>
+          )}
+        </div>
+      )}
+
       <AddOpportunityModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );

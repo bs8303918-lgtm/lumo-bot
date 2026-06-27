@@ -57,7 +57,9 @@ async def main() -> None:
             catalog_id = entry.id
             print(f"Добавлено: id={catalog_id} deadline={deadline}")
 
-    n = await OpportunityCatalogService(NotificationService()).notify_users_for_catalog_item(catalog_id)
+    svc = OpportunityCatalogService(NotificationService())
+    users = await svc.notify_users_for_catalog_item(catalog_id)
+    n = await svc.flush_pending_digests(users)
     print(f"Уведомлено пользователей: {n}")
 
 

@@ -41,14 +41,16 @@ class LLMProcessor:
         pair_limit = max_pairs if max_pairs is not None else self.settings.llm_max_pairs_per_cycle
 
         catalog_service = OpportunityCatalogService(self.notification_service)
+        catalog_notify_users: set[int] = set()
         new_catalog_ids = await catalog_service.classify_pending()
         for catalog_id in new_catalog_ids:
             try:
-                await catalog_service.notify_users_for_catalog_item(catalog_id)
+                catalog_notify_users |= await catalog_service.notify_users_for_catalog_item(catalog_id)
             except Exception as exc:
                 log_error(logger, "catalog_notify", exc, {"catalog_id": catalog_id})
 
         if not self.settings.llm_enable_pair_relevance:
+            await catalog_service.flush_pending_digests(catalog_notify_users)
             async with async_session_factory() as session:
                 await SystemStateRepository(session).set(
                     "llm_processor_last_run_at",
@@ -94,7 +96,7 @@ class LLMProcessor:
                     {"user_id": user.id, "raw_message_id": raw_message.id},
                 )
 
-        await self._flush_buffered_digests(touched_users)
+        await self._flush_buffered_digests(catalog_notify_users | touched_users)
 
         async with async_session_factory() as session:
             await SystemStateRepository(session).set(

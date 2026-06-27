@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
@@ -98,35 +98,32 @@ class UserRepository:
                 user.notifications_enabled = True
             return user, False
 
+        values = {
+            "telegram_id": telegram_id,
+            "username": username,
+            "notifications_enabled": True,
+        }
         if get_settings().is_sqlite:
-            result = await self.session.execute(
+            insert_stmt = (
                 sqlite_insert(User)
-                .values(
-                    telegram_id=telegram_id,
-                    username=username,
-                    notifications_enabled=True,
-                )
+                .values(**values)
                 .on_conflict_do_nothing(index_elements=["telegram_id"])
                 .returning(User.id)
             )
-            new_id = result.scalar_one_or_none()
-            if new_id is not None:
-                user = await self.get_by_id(new_id)
-                if user:
-                    return user, True
         else:
-            try:
-                async with self.session.begin_nested():
-                    user = User(
-                        telegram_id=telegram_id,
-                        username=username,
-                        notifications_enabled=True,
-                    )
-                    self.session.add(user)
-                    await self.session.flush()
-                    return user, True
-            except IntegrityError:
-                pass
+            insert_stmt = (
+                pg_insert(User)
+                .values(**values)
+                .on_conflict_do_nothing(index_elements=["telegram_id"])
+                .returning(User.id)
+            )
+
+        result = await self.session.execute(insert_stmt)
+        new_id = result.scalar_one_or_none()
+        if new_id is not None:
+            user = await self.get_by_id(new_id)
+            if user:
+                return user, True
 
         user = await self.get_by_telegram_id(telegram_id)
         if not user:

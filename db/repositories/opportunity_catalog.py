@@ -413,6 +413,38 @@ class OpportunityCatalogRepository:
             fresh = [e for e in fresh if wanted & set(entry_all_tags(e))]
         return fresh[:limit]
 
+    async def list_all_active_for_user(
+        self,
+        user_id: int,
+        types: list[str],
+        *,
+        max_rows: int = 5000,
+    ) -> list[CatalogOpportunity]:
+        """All fresh catalog rows for the user (for sorted/paginated Mini App lists)."""
+        if not types:
+            types = list(OPPORTUNITY_TYPES)
+        normalized = [t.lower().strip() for t in types]
+        filter_by_type = set(normalized) != set(OPPORTUNITY_TYPES)
+        user_channels = await self._user_channel_identifiers(user_id)
+        result = await self.session.execute(
+            select(CatalogOpportunity)
+            .options(joinedload(CatalogOpportunity.raw_message))
+            .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
+            .join(MonitoredChannel, RawMessage.monitored_channel_id == MonitoredChannel.id)
+            .where(CatalogOpportunity.is_active.is_(True))
+            .where(self._catalog_access_condition(user_channels))
+            .order_by(CatalogOpportunity.classified_at.desc())
+            .limit(max_rows)
+        )
+        fresh = filter_fresh_entries(
+            list(result.scalars().unique().all()),
+            max_age_days_no_deadline=self.no_deadline_max_age_days,
+        )
+        if filter_by_type:
+            wanted = set(normalized)
+            fresh = [e for e in fresh if wanted & set(entry_all_tags(e))]
+        return fresh
+
     async def get_active_for_domain(
         self,
         user_id: int,
