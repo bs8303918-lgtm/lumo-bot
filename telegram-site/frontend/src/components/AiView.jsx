@@ -114,7 +114,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
           {isAdmin
             ? `Admin · без лимита · в каталоге ${profile?.catalogCount ?? '…'} записей`
             : limitBlocksProfile
-              ? `Лимит AI на сегодня (${dailyLimit}/${dailyLimit}). Открой вкладку «Тарифы».`
+              ? `Лимит AI на сегодня (${dailyLimit}/${dailyLimit}). Открой вкладку Price.`
               : isProfileSave
                 ? `Сохранение профиля: осталось ${remaining} из ${dailyLimit} на сегодня`
                 : 'Быстрый поиск — без лимита'}

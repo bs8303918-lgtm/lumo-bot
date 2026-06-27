@@ -27,7 +27,7 @@ export default function SubscriptionSection({ meta, profile, plans, onOpenPriceL
             className="text-[11px] font-semibold underline shrink-0"
             style={{ color: 'var(--lumo-link)' }}
           >
-            Все тарифы
+            Price
           </button>
         )}
       </div>

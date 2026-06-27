@@ -14,7 +14,7 @@ function ViewTabs({ active, onChange, isAdmin }) {
   const tabs = [
     { id: 'ai', label: 'AI-поиск', prefix: '✦' },
     { id: 'catalog', label: 'Каталог', prefix: null },
-    { id: 'pricing', label: 'Тарифы', prefix: '₸' },
+    { id: 'pricing', label: 'Price', prefix: null },
     { id: 'profile', label: 'Профиль', prefix: '●' },
   ];
   if (isAdmin) {
