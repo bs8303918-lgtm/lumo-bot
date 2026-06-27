@@ -53,6 +53,7 @@ async def main() -> None:
     while True:
         qr_login = await client.qr_login()
         show_qr(qr_login.url)
+        print(f"\nСсылка для QR (можно открыть на другом устройстве):\n{qr_login.url}\n")
 
         try:
             user = await asyncio.wait_for(qr_login.wait(), timeout=25.0)

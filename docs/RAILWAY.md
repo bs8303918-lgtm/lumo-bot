@@ -97,17 +97,38 @@ AUTO_BUILD_WEBAPP=false
 
 ---
 
-## 4. Volume для Telethon (обязательно)
+## 4. Volume + Telethon (обязательно для мониторинга каналов)
 
-Без volume сессия сотрётся при redeploy.
+> **Сначала** сервис должен быть **Online** (не FAILED). Иначе Console/Shell недоступен.
+
+### Volume
 
 1. lumo-bot → **Volumes** → Mount path: `/data`  
 2. Variable: `TELETHON_SESSION_PATH=/data/lumo_session`  
-3. **Shell:**
-   ```bash
-   python scripts/telethon_login_qr.py
-   ```
-   QR → Telegram → Настройки → Устройства  
+3. **Redeploy**
+
+### Логин (Railway → lumo-bot → **Console** или вкладка **Shell**)
+
+```bash
+python scripts/telethon_login_qr.py
+```
+
+1. В логе появится **ссылка** (и файл `telethon_qr.png` в контейнере)  
+2. Открой ссылку на телефоне **или** Telegram → **Настройки → Устройства → Подключить устройство**  
+3. Дождись `Вход выполнен` / `Готово! Сессия сохранена`
+
+### Альтернатива — логин на ПК
+
+```powershell
+# .env с теми же TELEGRAM_API_ID / TELEGRAM_API_HASH
+python scripts/telethon_login_qr.py
+```
+
+Файл `lumo_session.session` → загрузи в volume `/data/` как `lumo_session.session` (через Railway CLI или повтори QR в Console).
+
+### Проверка
+
+Telegram → `/health` → **Telethon сессия: ✅**
 
 ---
 
