@@ -32,7 +32,7 @@ from db.repositories.users import MatchRepository, MessageRepository, SystemStat
 from services.analytics import track
 from services.notification_service import NotificationService
 from services.opportunity_catalog import OpportunityCatalogService
-from bot.background import schedule_community_invite
+from bot.background import schedule_community_invite, schedule_interest_llm_refine
 
 router = Router()
 
@@ -92,7 +92,9 @@ async def process_interest(message: Message, state: FSMContext, session: AsyncSe
         session=session,
         telegram_id=message.from_user.id,
         username=message.from_user.username,
+        skip_llm=True,
     )
+    schedule_interest_llm_refine(user.id, interest_text)
     await track(
         session,
         INTEREST_SET,

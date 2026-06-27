@@ -21,6 +21,7 @@ from services.ai_search_limit import ai_search_usage, enforce_ai_search_limit
 from services.interest_matcher import entry_all_tags, resolve_catalog_types
 from services.opportunity_catalog import catalog_repo
 from services.subscription import public_plans, subscription_status
+from bot.background import schedule_interest_llm_refine
 from services.webapp_catalog import (
     SEARCH_SUGGESTIONS,
     build_category_list,
@@ -173,8 +174,8 @@ async def set_interest(
     await enforce_ai_search_limit(session, user.id, telegram_id=user.telegram_id)
 
     settings = get_settings()
-    skip_llm = settings.is_admin(user.telegram_id)
-    categories = await _persist_interest(session, user, text, skip_llm=skip_llm)
+    categories = await _persist_interest(session, user, text, skip_llm=True)
+    schedule_interest_llm_refine(user.id, text)
     await EventRepository(session).log(AI_SEARCH, user_id=user.id, metadata={"saved": True})
     await session.commit()
     catalog_repo_inst = catalog_repo(session)
@@ -299,7 +300,8 @@ async def lumo_match(
         await enforce_ai_search_limit(session, user.id, telegram_id=user.telegram_id)
 
     if payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
-        await _persist_interest(session, user, query)
+        await _persist_interest(session, user, query, skip_llm=True)
+        schedule_interest_llm_refine(user.id, query)
         user = await UserRepository(session).get_by_id(user.id) or user
 
     repo = catalog_repo(session)
