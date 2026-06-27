@@ -12,15 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 async def run_api_server() -> None:
+    import os
+
     settings = get_settings()
     if not settings.api_enabled:
         logger.info("API server disabled (API_ENABLED=false)")
         return
 
+    port = int(os.environ.get("PORT", settings.api_port))
+
     config = uvicorn.Config(
         "api.app:app",
         host=settings.api_host,
-        port=settings.api_port,
+        port=port,
         log_level="info",
         access_log=False,
     )
@@ -28,6 +32,6 @@ async def run_api_server() -> None:
     logger.info(
         "API + Mini App on http://%s:%s  (app: /app/  api: /api/)",
         settings.api_host,
-        settings.api_port,
+        port,
     )
     await server.serve()

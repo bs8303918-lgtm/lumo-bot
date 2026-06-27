@@ -10,6 +10,15 @@ class Base(DeclarativeBase):
     pass
 
 
+def _postgres_connect_args(database_url: str) -> dict:
+    """asyncpg: ssl=True (not 'require'); pooler 6543 needs no prepared stmt cache."""
+    args: dict = {"ssl": True}
+    if ":6543" in database_url or "pooler.supabase.com" in database_url:
+        args["statement_cache_size"] = 0
+        args["prepared_statement_cache_size"] = 0
+    return args
+
+
 settings = get_settings()
 
 engine_kwargs: dict = {
@@ -20,8 +29,10 @@ engine_kwargs: dict = {
 if settings.is_sqlite:
     engine_kwargs["connect_args"] = {"timeout": 30}
     engine_kwargs["poolclass"] = NullPool
-elif "supabase" in settings.database_url:
-    engine_kwargs["connect_args"] = {"ssl": "require"}
+elif settings.database_url.startswith("postgresql"):
+    engine_kwargs["connect_args"] = _postgres_connect_args(settings.database_url)
+    if ":6543" in settings.database_url or "pooler.supabase.com" in settings.database_url:
+        engine_kwargs["poolclass"] = NullPool
 
 engine = create_async_engine(settings.database_url, **engine_kwargs)
 
