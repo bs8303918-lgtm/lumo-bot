@@ -16,8 +16,16 @@ def ai_search_day_start_utc() -> datetime:
     local_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
     return local_start.astimezone(timezone.utc)
 
-async def ai_search_usage(session: AsyncSession, user_id: int) -> dict[str, int]:
-    limit = get_settings().ai_search_daily_limit
+async def ai_search_usage(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    telegram_id: int | None = None,
+) -> dict[str, int]:
+    settings = get_settings()
+    limit = settings.ai_search_daily_limit
+    if telegram_id is not None and settings.is_admin(telegram_id):
+        return {"used": 0, "limit": limit, "remaining": 999999}
     used = await EventRepository(session).count_user_events_since(
         user_id, AI_SEARCH, ai_search_day_start_utc()
     )

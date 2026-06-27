@@ -156,12 +156,14 @@ async def save_user_interest_profile(
     session: AsyncSession | None = None,
     telegram_id: int | None = None,
     username: str | None = None,
+    skip_llm: bool = False,
 ) -> InterestProfile:
     from services.interest_categorizer import categorize_interest
 
     profile, _source = await categorize_interest(
         interest_query,
         user_id=user_id,
+        skip_llm=skip_llm,
     )
 
     async def _apply(sess: AsyncSession) -> None:

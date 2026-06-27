@@ -42,6 +42,7 @@ async def categorize_interest(
     *,
     user_id: int | None = None,
     approved_domains: list[str] | None = None,
+    skip_llm: bool = False,
 ) -> tuple[InterestProfile, str]:
     """
     Разобрать интерес школьника.
@@ -54,7 +55,8 @@ async def categorize_interest(
 
     settings = get_settings()
     if (
-        settings.llm_interest_categorization
+        not skip_llm
+        and settings.llm_interest_categorization
         and settings.llm_configured
         and _needs_llm_categorization(profile)
     ):

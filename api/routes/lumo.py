@@ -45,14 +45,27 @@ class SetInterestRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
 
 
-async def _persist_interest(session: AsyncSession, user: User, text: str) -> list[str]:
+async def _persist_interest(
+    session: AsyncSession,
+    user: User,
+    text: str,
+    *,
+    skip_llm: bool = False,
+) -> list[str]:
     await MatchRepository(session).clear_processed_for_user(user.id)
     max_raw_id = await MessageRepository(session).get_max_raw_message_id()
     await SystemStateRepository(session).set_llm_min_raw_id(user.id, max_raw_id)
     await session.commit()
     from services.interest_admin_review import save_user_interest_profile
 
-    profile = await save_user_interest_profile(user.id, text)
+    profile = await save_user_interest_profile(
+        user.id,
+        text,
+        session=session,
+        telegram_id=user.telegram_id,
+        username=user.username,
+        skip_llm=skip_llm,
+    )
     return profile.all_categories()
 
 
@@ -79,17 +92,20 @@ async def get_me(
 ) -> dict:
     settings = get_settings()
     categories = parse_interest_categories(user.interest_categories_json)
-    search = await ai_search_usage(session, user.id)
+    is_admin = settings.is_admin(user.telegram_id)
+    search = await ai_search_usage(session, user.id, telegram_id=user.telegram_id)
+    catalog_count = await catalog_repo(session).count_active_for_user(user.id)
     return {
         "telegramId": user.telegram_id,
         "username": user.username,
         "interestQuery": user.interest_query,
         "categories": categories,
         "hasInterest": bool(user.interest_query and user.interest_query.strip()),
-        "isAdmin": settings.is_admin(user.telegram_id),
+        "isAdmin": is_admin,
         "aiSearchUsed": search["used"],
         "aiSearchLimit": search["limit"],
         "aiSearchRemaining": search["remaining"],
+        "catalogCount": catalog_count,
     }
 
 
@@ -144,7 +160,9 @@ async def set_interest(
 
     await enforce_ai_search_limit(session, user.id, telegram_id=user.telegram_id)
 
-    categories = await _persist_interest(session, user, text)
+    settings = get_settings()
+    skip_llm = settings.is_admin(user.telegram_id)
+    categories = await _persist_interest(session, user, text, skip_llm=skip_llm)
     await EventRepository(session).log(AI_SEARCH, user_id=user.id, metadata={"saved": True})
     await session.commit()
     catalog_repo_inst = catalog_repo(session)
@@ -162,7 +180,10 @@ async def set_interest(
     if count:
         message = f"Подобрал {count} {plural_opportunities(count)} под твой запрос."
     elif catalog_count == 0:
-        message = "База пока пустая — как только появятся посты, пришлю в бот."
+        message = (
+            "Профиль сохранён. Каталог пока пуст — мониторинг каналов наполняет базу "
+            "(нужен Telethon authorized). Проверь через несколько часов или вкладку Каталог."
+        )
     else:
         message = (
             "По твоему запросу пока ничего не нашёл — профиль сохранён, "

@@ -53,16 +53,25 @@ export async function apiFetch(path, options = {}) {
 
   let res;
   const url = `${API}${path}`;
+  const controller = new AbortController();
+  const timeoutMs = 120000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     res = await fetch(url, {
       ...options,
+      signal: controller.signal,
       headers: { ...apiHeaders(), ...options.headers },
     });
   } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Запрос занял слишком долго (>2 мин). Проверь Railway Logs и LLM ключ.');
+    }
     const hint = API_BASE ? ` (${url})` : '';
     throw new Error(
       `Не удалось связаться с API${hint}. Проверь Railway Online, VITE_API_URL на Vercel и Redeploy после смены переменных.`
     );
+  } finally {
+    clearTimeout(timer);
   }
   const data = await readJsonResponse(res);
   if (!res.ok) {
