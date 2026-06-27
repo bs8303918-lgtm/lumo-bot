@@ -1,5 +1,5 @@
 import { Sparkles } from 'lucide-react';
-import { formatPriceKzt } from '../utils/pricing';
+import { formatPriceKzt, resolvePlans } from '../utils/pricing';
 import { haptic } from '../api';
 
 export default function SubscriptionSection({ meta, profile, plans, onOpenPriceList }) {
@@ -8,6 +8,7 @@ export default function SubscriptionSection({ meta, profile, plans, onOpenPriceL
   const sub = profile?.subscription;
   const checkout = meta?.startifyCheckoutUrl;
   const enforced = sub?.enforced;
+  const visiblePlans = resolvePlans(plans).slice(0, 3);
 
   return (
     <section className="lumo-card p-4">
@@ -53,7 +54,7 @@ export default function SubscriptionSection({ meta, profile, plans, onOpenPriceL
       )}
 
       <div className="space-y-2">
-        {(plans || []).slice(0, 3).map((plan) => (
+        {(visiblePlans || []).map((plan) => (
           <div
             key={plan.id}
             className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5"

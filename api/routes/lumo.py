@@ -87,6 +87,7 @@ async def lumo_meta() -> dict:
         "subscriptionsEnforced": settings.subscriptions_enforced,
         "subscriptionPreviewEnabled": settings.subscription_preview_enabled,
         "startifyCheckoutUrl": settings.startify_checkout_url.strip() or None,
+        "plans": public_plans(),
     }
 
 

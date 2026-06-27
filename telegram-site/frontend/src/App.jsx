@@ -6,13 +6,15 @@ import CatalogView from './components/CatalogView';
 import DetailModal from './components/DetailModal';
 import LumoLogo from './components/LumoLogo';
 import ProfileView from './components/ProfileView';
-import PriceListView from './components/PriceListView';
+import PricingView from './components/PricingView';
+import { resolvePlans } from './utils/pricing';
 import { apiFetch, getTelegram, haptic, initTelegramApp } from './api';
 
 function ViewTabs({ active, onChange, isAdmin }) {
   const tabs = [
     { id: 'ai', label: 'AI-поиск', prefix: '✦' },
     { id: 'catalog', label: 'Каталог', prefix: null },
+    { id: 'pricing', label: 'Тарифы', prefix: '₸' },
     { id: 'profile', label: 'Профиль', prefix: '●' },
   ];
   if (isAdmin) {
@@ -61,8 +63,7 @@ export default function App() {
   const [meta, setMeta] = useState(null);
   const [profile, setProfile] = useState(null);
   const [plans, setPlans] = useState([]);
-  const [priceListOpen, setPriceListOpen] = useState(false);
-  const [priceListReason, setPriceListReason] = useState('limit');
+  const [pricingLimitNotice, setPricingLimitNotice] = useState(false);
   const [authError, setAuthError] = useState(null);
   const inTelegram = Boolean(getTelegram()?.initData);
   const botUsername = meta?.botUsername || 'LumoAI1bot';
@@ -79,17 +80,31 @@ export default function App() {
 
   useEffect(() => {
     initTelegramApp();
-    apiFetch('/lumo/meta').then(setMeta).catch(() => {});
+    apiFetch('/lumo/meta')
+      .then((data) => {
+        setMeta(data);
+        if (data.plans?.length) setPlans(data.plans);
+      })
+      .catch(() => {});
     apiFetch('/lumo/subscription-plans')
       .then((data) => setPlans(data.plans || []))
-      .catch(() => setPlans([]));
+      .catch(() => {});
     loadProfile();
   }, [loadProfile]);
 
-  const openPriceList = useCallback((reason = 'manual') => {
-    setPriceListReason(reason);
-    setPriceListOpen(true);
-  }, []);
+  const resolvedPlans = resolvePlans(plans);
+
+  const openPricing = useCallback(
+    (reason = 'manual') => {
+      if (reason === 'limit') {
+        setPricingLimitNotice(true);
+        setView('pricing');
+      } else {
+        setView('pricing');
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const tg = getTelegram();
@@ -154,7 +169,14 @@ export default function App() {
               </button>
             </div>
           </div>
-          <ViewTabs active={view} onChange={setView} isAdmin={profile?.isAdmin} />
+          <ViewTabs
+            active={view}
+            onChange={(id) => {
+              if (id !== 'pricing') setPricingLimitNotice(false);
+              setView(id);
+            }}
+            isAdmin={profile?.isAdmin}
+          />
         </div>
       </header>
 
@@ -174,17 +196,29 @@ export default function App() {
             meta={meta}
             profile={profile}
             onProfileRefresh={loadProfile}
-            onOpenPriceList={openPriceList}
+            onOpenPriceList={openPricing}
           />
         )}
         {view === 'catalog' && <CatalogView onOpenItem={openItem} />}
+        {view === 'pricing' && (
+          <PricingView
+            meta={meta}
+            profile={profile}
+            plans={resolvedPlans}
+            limitNotice={pricingLimitNotice}
+            onDismissLimit={() => {
+              setPricingLimitNotice(false);
+              setView('catalog');
+            }}
+          />
+        )}
         {view === 'profile' && (
           <ProfileView
             meta={meta}
             profile={profile}
-            plans={plans}
+            plans={resolvedPlans}
             onProfileRefresh={loadProfile}
-            onOpenPriceList={openPriceList}
+            onOpenPriceList={openPricing}
           />
         )}
         {view === 'admin' && profile?.isAdmin && (
@@ -209,15 +243,6 @@ export default function App() {
       </footer>
 
       <DetailModal item={selected} onClose={() => setSelected(null)} />
-
-      <PriceListView
-        open={priceListOpen}
-        onClose={() => setPriceListOpen(false)}
-        plans={plans}
-        meta={meta}
-        profile={profile}
-        reason={priceListReason}
-      />
     </div>
   );
 }
