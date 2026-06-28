@@ -11,7 +11,6 @@ from llm.client import LLMClient
 from services.interest_admin_review import get_approved_domains
 from services.interest_matcher import OPPORTUNITY_TYPES, is_standard_category
 from services.interest_profile import InterestProfile, apply_interest_defaults, parse_interest_profile
-from services.training_collector import record_interest_categories
 
 logger = logging.getLogger(__name__)
 
@@ -91,15 +90,6 @@ async def categorize_interest(
             logger.warning("Interest LLM categorization failed: %s", exc)
 
     apply_interest_defaults(profile, text)
-
-    categories = profile.all_categories()
-    if user_id is not None and not skip_llm:
-        await record_interest_categories(
-            user_id=user_id,
-            interest_query=text,
-            categories=categories,
-            source=source,
-        )
 
     return profile, source
 

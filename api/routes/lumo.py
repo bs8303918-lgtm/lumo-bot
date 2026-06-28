@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ from services.interest_matcher import (
 )
 from services.opportunity_catalog import catalog_repo
 from services.subscription import public_plans, subscription_status
-from bot.background import schedule_interest_save
+from bot.background import run_interest_side_effects
 from services.webapp_catalog import (
     SEARCH_SUGGESTIONS,
     build_category_list,
@@ -187,6 +187,7 @@ async def delete_my_channel(
 @router.post("/users/interest")
 async def set_interest(
     payload: SetInterestRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -202,25 +203,29 @@ async def set_interest(
     interest_changed = (user.interest_query or "").strip() != text
     items, _matched, categories = await _search_catalog(session, user, text, limit=12)
 
-    if interest_changed:
-        schedule_interest_save(user.id, text)
-    elif not categories:
+    if not interest_changed and not categories:
         categories = (
             parse_interest_categories(user.interest_categories_json)
             or extract_categories_from_text(text)
         )
 
-    await EventRepository(session).log(AI_SEARCH, user_id=user.id, metadata={"saved": True})
-    await session.commit()
-
     count = len(items)
     if count:
         message = f"Подобрал {count} {plural_opportunities(count)} под твой запрос."
-    elif count == 0:
+    else:
         message = (
             "По твоему запросу пока ничего не нашёл — профиль сохраняю, "
             "пришлю в бот, когда появится подходящее."
         )
+
+    background_tasks.add_task(
+        run_interest_side_effects,
+        user.id,
+        text,
+        results_count=count,
+        profile_changed=interest_changed,
+        log_ai_search=True,
+    )
 
     return {
         "ok": True,
@@ -336,6 +341,7 @@ async def lumo_opportunity(
 @router.post("/lumo/match")
 async def lumo_match(
     payload: MatchRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -343,7 +349,8 @@ async def lumo_match(
     if len(query) < 3:
         raise HTTPException(status_code=422, detail="Опиши запрос подробнее")
 
-    if payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
+    save_profile = payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH
+    if save_profile:
         await enforce_ai_search_limit(session, user.id, telegram_id=user.telegram_id)
 
     items, cat_list, _raw_categories = await _search_catalog(
@@ -353,14 +360,10 @@ async def lumo_match(
         limit=payload.limit,
     )
 
-    if payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
-        if (user.interest_query or "").strip() != query:
-            schedule_interest_save(user.id, query)
-
     count = len(items)
     if count:
         message = f"Подобрал {count} {plural_opportunities(count)} под твой запрос."
-    elif payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
+    elif save_profile:
         message = (
             "По твоему запросу пока ничего не нашёл — профиль сохраняю, "
             "пришлю в бот, когда появится подходящее."
@@ -368,21 +371,21 @@ async def lumo_match(
     else:
         message = "По этому запросу пока ничего не нашёл."
 
-    no_match = count == 0
-
-    if payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
-        await EventRepository(session).log(
-            AI_SEARCH,
-            user_id=user.id,
-            metadata={"saved": True, "results": count},
+    if save_profile:
+        background_tasks.add_task(
+            run_interest_side_effects,
+            user.id,
+            query,
+            results_count=count,
+            profile_changed=(user.interest_query or "").strip() != query,
+            log_ai_search=True,
         )
-    await session.commit()
 
     return {
         "query": query,
         "categories": category_chips(cat_list),
         "message": message,
         "items": items,
-        "noMatch": no_match,
+        "noMatch": count == 0,
         "suggestions": SEARCH_SUGGESTIONS if count == 0 else [],
     }
