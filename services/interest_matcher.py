@@ -163,7 +163,7 @@ MAX_OPPORTUNITY_TAGS = 4
 
 ALL_CATALOG_TYPES = [t for t in OPPORTUNITY_TYPES if t != "другое"]
 
-_CONTEST_RELATED = ("хакатон", "кейс", "олимпиада", "эссе")
+_CONTEST_RELATED = ("хакатон", "кейс", "олимпиада", "эссе", "грант", "мероприятие")
 
 
 def _keyword_in_text(keyword: str, text: str) -> bool:
@@ -178,9 +178,48 @@ _TOPIC_ALIASES: dict[str, tuple[str, ...]] = {
     "стартапер": ("стартап", "startup", "start-up", "pitch", "питч", "акселератор", "ивент", "founder"),
     "стартап": ("startup", "pitch", "питч", "акселератор", "founder"),
     "startup": ("startup", "стартап", "pitch", "founder"),
+    "стартапы": (
+        "стартап",
+        "startup",
+        "start-up",
+        "pitch",
+        "питч",
+        "founder",
+        "фаундер",
+        "акселератор",
+        "accelerator",
+        "incubator",
+        "инкубатор",
+        "entrepreneur",
+        "предприним",
+        "venture",
+    ),
     "дизайн": ("design", "дизайн", "ux", "ui", "figma"),
     "эколог": ("эко", "ecology", "climate", "green", "устойчив"),
 }
+
+_STARTUP_BLOB_MARKERS: tuple[str, ...] = (
+    "стартап",
+    "startup",
+    "start-up",
+    "стартапер",
+    "founder",
+    "фаундер",
+    "pitch",
+    "питч",
+    "акселератор",
+    "accelerator",
+    "incubator",
+    "инкубатор",
+    "entrepreneur",
+    "предприним",
+    "venture",
+    "business plan",
+    "бизнес-план",
+    "demo day",
+)
+
+_STARTUP_DOMAIN_TAGS = frozenset({"стартапы", "стартап", "startup", "бизнес"})
 
 _CUSTOM_TAG_RULES: tuple[tuple[str, str], ...] = (
     (r"олимпиад|olympiad", "олимпиады"),
@@ -395,6 +434,10 @@ def resolve_catalog_filter(categories: list[str]) -> tuple[list[str], list[str]]
             for rel in _CONTEST_RELATED:
                 if rel not in types:
                     types.append(rel)
+        if "стартапы" in extra or any(d in ("стартапы", "стартап", "startup") for d in extra):
+            for rel in ("хакатон", "грант", "кейс", "конкурс", "мероприятие"):
+                if rel not in types:
+                    types.append(rel)
         return types, extra
 
     if extra:
@@ -469,6 +512,44 @@ def is_domain_category(category: str) -> bool:
     return category.lower().strip() in all_known_domain_slugs()
 
 
+def wants_startup_focus(categories: list[str], interest_query: str) -> bool:
+    lowered = (interest_query or "").lower()
+    if any(c in categories for c in ("стартапы", "стартап", "startup")):
+        return True
+    return any(
+        marker in lowered
+        for marker in (
+            "стартап",
+            "startup",
+            "стартапер",
+            "фаундер",
+            "founder",
+            "питч",
+            "pitch",
+            "акселератор",
+            "incubator",
+            "инкубатор",
+        )
+    )
+
+
+def entry_startup_related(entry: CatalogOpportunity) -> bool:
+    tags = {t.lower().strip() for t in entry_all_tags(entry)}
+    if tags & _STARTUP_DOMAIN_TAGS:
+        return True
+    blob = " ".join(
+        filter(
+            None,
+            [
+                entry.title,
+                entry.description,
+                entry.requirements or "",
+            ],
+        )
+    ).lower()
+    return any(marker in blob for marker in _STARTUP_BLOB_MARKERS)
+
+
 def tag_display(category: str) -> tuple[str, str]:
     from services.interest_domains import display_for_domain
 
@@ -535,8 +616,17 @@ def relevance_score(
         )
         if domain_hits:
             score += 1.5 + domain_hits * 0.5
+        if "стартапы" in domains and entry_startup_related(entry):
+            score += 5.0
+        elif "стартапы" in domains:
+            score *= 0.5
         if "денежные призы" in domains and _entry_has_cash_prize(blob):
             score += 2.0
+
+    if wants_startup_focus(categories, interest_query) and entry_startup_related(entry):
+        score += 4.0
+    elif wants_startup_focus(categories, interest_query):
+        score *= 0.45
 
     if format_preferences:
         score += _format_score(format_preferences, blob)

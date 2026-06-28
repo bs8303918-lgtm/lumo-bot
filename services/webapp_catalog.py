@@ -14,8 +14,10 @@ from services.interest_matcher import (
     CATEGORY_DISPLAY,
     OPPORTUNITY_TYPES,
     entry_all_tags,
+    entry_startup_related,
     extract_categories_from_text,
     relevance_score,
+    wants_startup_focus,
 )
 from services.opportunity_links import (
     normalize_application_url,
@@ -176,6 +178,15 @@ def match_opportunities_for_user(
     scored.sort(key=lambda pair: (pair[0], not is_unknown_deadline(pair[1].deadline)), reverse=True)
 
     picked = [entry for score, entry in scored if score >= floor][:limit]
+
+    if wants_startup_focus(categories, text):
+        startup_scored = [
+            (score, entry)
+            for score, entry in scored
+            if entry_startup_related(entry) and score >= floor
+        ]
+        if startup_scored:
+            picked = [entry for _, entry in startup_scored[:limit]]
 
     if not picked and (intent_types or extra_tags):
         wanted = set(intent_types)
