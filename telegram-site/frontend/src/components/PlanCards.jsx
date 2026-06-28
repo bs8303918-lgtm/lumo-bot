@@ -62,6 +62,14 @@ export default function PlanCards({ plans, compact = false, selectedId, onSelect
                       {plan.benefit}
                     </p>
                   )}
+                  {selected && (
+                    <p
+                      className="mt-2 text-[11px] font-semibold"
+                      style={{ color: 'var(--lumo-link)' }}
+                    >
+                      ↓ Kaspi для оплаты внизу экрана
+                    </p>
+                  )}
                 </div>
                 <div className="text-right shrink-0 pt-0.5">
                   <div className={`font-bold ${compact ? 'text-[16px]' : 'text-[20px]'}`}>

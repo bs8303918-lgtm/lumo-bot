@@ -31,7 +31,7 @@ export default function PriceListView({ open, onClose, plans, meta, profile, rea
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      <div className="max-w-lg mx-auto w-full flex flex-col flex-1 px-4 py-4">
+      <div className="max-w-lg mx-auto w-full flex flex-col flex-1 px-4 py-4 pb-36">
         <div className="flex justify-end mb-1">
           <button
             type="button"
@@ -46,13 +46,23 @@ export default function PriceListView({ open, onClose, plans, meta, profile, rea
 
         <PricingHeader limitNotice={isLimitReason} dailyLimit={dailyLimit} />
         <PlanCards plans={resolved} selectedId={selectedPlan?.id} onSelect={setSelectedPlan} />
-        <PricingFooter
-          meta={meta}
-          profile={profile}
-          limitNotice={isLimitReason}
-          onClose={handleClose}
-          selectedPlan={selectedPlan}
-        />
+        <div
+          className="fixed bottom-0 left-0 right-0 z-20 px-4 pt-3 pb-4 border-t"
+          style={{
+            background: 'var(--lumo-bg)',
+            borderColor: 'var(--lumo-border)',
+            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+            boxShadow: '0 -8px 24px rgba(0,0,0,0.12)',
+          }}
+        >
+          <PricingFooter
+            meta={meta}
+            profile={profile}
+            limitNotice={isLimitReason}
+            onClose={handleClose}
+            selectedPlan={selectedPlan}
+          />
+        </div>
       </div>
     </div>
   );
