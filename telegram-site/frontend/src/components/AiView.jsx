@@ -5,6 +5,7 @@ import { Send } from 'lucide-react';
 import { apiFetch, haptic } from '../api';
 
 import OpportunityCard from './OpportunityCard';
+import { SearchResultsFeedback } from './SearchFeedback';
 
 const FALLBACK_SUGGESTIONS = [
   { emoji: '🚀', text: 'Я стартапер. Ищу питчи, хакатоны и гранты для стартапов в Казахстане' },
@@ -216,10 +217,24 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
           </div>
 
           {result.items?.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3">
-              {result.items.map((item) => (
-                <OpportunityCard key={item.id} item={item} onOpen={onOpenItem} />
-              ))}
+            <div className="space-y-3">
+              <SearchResultsFeedback
+                query={result.query}
+                items={result.items}
+                categories={result.categories}
+                disabled={loading}
+              />
+              <div className="grid grid-cols-1 gap-3">
+                {result.items.map((item) => (
+                  <OpportunityCard
+                    key={item.id}
+                    item={item}
+                    onOpen={onOpenItem}
+                    feedbackQuery={result.query}
+                    feedbackCategories={result.categories}
+                  />
+                ))}
+              </div>
             </div>
           ) : result.noMatch ? (
             <div className="space-y-3">

@@ -195,6 +195,36 @@ async def record_interest_categories(
     )
 
 
+async def record_search_feedback(
+    *,
+    user_id: int,
+    interest_query: str,
+    catalog_id: int,
+    helpful: bool,
+    categories: list[str] | None = None,
+) -> None:
+    """Оценка пользователя: карточка совпала с запросом или нет (для обучения match)."""
+    from db.repositories.opportunity_catalog import OpportunityCatalogRepository
+
+    async with async_session_factory() as session:
+        repo = OpportunityCatalogRepository(session)
+        row = await repo.get_entry_with_channel(catalog_id)
+        if not row:
+            return
+        entry, _channel = row
+
+    await record_match(
+        user_id=user_id,
+        interest_query=interest_query,
+        entry=entry,
+        relevant=helpful,
+        score=None,
+        source="user_feedback",
+        catalog_id=catalog_id,
+        categories=categories,
+    )
+
+
 def sample_to_jsonl(row) -> str:
     """Одна строка JSONL в формате, удобном для fine-tuning."""
     input_data = json.loads(row.input_json)

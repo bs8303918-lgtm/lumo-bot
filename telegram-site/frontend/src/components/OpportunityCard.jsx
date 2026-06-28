@@ -2,8 +2,9 @@ import { Calendar, Clock } from 'lucide-react';
 import { formatDeadlineMeta, sourceHandle } from '../utils/deadline';
 import { itemTags } from '../utils/categories';
 import TagChips from './TagChips';
+import { CardMatchFeedback } from './SearchFeedback';
 
-export default function OpportunityCard({ item, onOpen }) {
+export default function OpportunityCard({ item, onOpen, feedbackQuery, feedbackCategories }) {
   const tags = itemTags(item);
   const deadline = formatDeadlineMeta(item.deadline);
   const handle = sourceHandle(item);
@@ -39,6 +40,14 @@ export default function OpportunityCard({ item, onOpen }) {
           </span>
         )}
       </div>
+
+      {feedbackQuery && (
+        <CardMatchFeedback
+          query={feedbackQuery}
+          item={item}
+          categories={feedbackCategories}
+        />
+      )}
     </article>
   );
 }

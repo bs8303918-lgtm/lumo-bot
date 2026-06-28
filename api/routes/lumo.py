@@ -52,6 +52,20 @@ class SetInterestRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
 
 
+class MatchFeedbackRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=4000)
+    catalogId: int = Field(ge=1)
+    helpful: bool
+    categories: list[str] = Field(default_factory=list)
+
+
+class MatchFeedbackBatchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=4000)
+    helpful: bool
+    catalogIds: list[int] = Field(min_length=1, max_length=30)
+    categories: list[str] = Field(default_factory=list)
+
+
 async def _persist_interest(
     session: AsyncSession,
     user: User,
@@ -389,3 +403,59 @@ async def lumo_match(
         "noMatch": count == 0,
         "suggestions": SEARCH_SUGGESTIONS if count == 0 else [],
     }
+
+
+async def _persist_match_feedback(
+    user_id: int,
+    query: str,
+    catalog_id: int,
+    helpful: bool,
+    categories: list[str],
+) -> None:
+    from services.training_collector import record_search_feedback
+
+    await record_search_feedback(
+        user_id=user_id,
+        interest_query=query,
+        catalog_id=catalog_id,
+        helpful=helpful,
+        categories=categories,
+    )
+
+
+@router.post("/lumo/match-feedback")
+async def lumo_match_feedback(
+    payload: MatchFeedbackRequest,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """👍/👎 по одной карточке — в training_samples task=match."""
+    background_tasks.add_task(
+        _persist_match_feedback,
+        user.id,
+        payload.query.strip(),
+        payload.catalogId,
+        payload.helpful,
+        payload.categories,
+    )
+    return {"ok": True}
+
+
+@router.post("/lumo/match-feedback/batch")
+async def lumo_match_feedback_batch(
+    payload: MatchFeedbackBatchRequest,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Оценка всей выдачи сразу — каждая карточка в training."""
+    query = payload.query.strip()
+    for catalog_id in payload.catalogIds:
+        background_tasks.add_task(
+            _persist_match_feedback,
+            user.id,
+            query,
+            catalog_id,
+            payload.helpful,
+            payload.categories,
+        )
+    return {"ok": True, "count": len(payload.catalogIds)}
