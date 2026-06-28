@@ -8,8 +8,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# Cache bust: 2026-06-28 pgbouncer/asyncpg fix
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --force-reinstall "asyncpg==0.30.0"
+    && pip install --no-cache-dir --force-reinstall "asyncpg==0.30.0" \
+    && python -c "import asyncpg, sqlalchemy; print('asyncpg', asyncpg.__version__, 'sqlalchemy', sqlalchemy.__version__)"
 
 COPY . .
 

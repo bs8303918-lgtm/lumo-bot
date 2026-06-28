@@ -5,6 +5,8 @@ from sqlalchemy.pool import NullPool
 
 from config import get_settings
 
+from db.asyncpg_compat import patch_sqlalchemy_asyncpg_connect
+
 
 class Base(DeclarativeBase):
     pass
@@ -95,6 +97,7 @@ _pooler_configured = False
 if settings.database_url.startswith("postgresql"):
     from db.supabase_url import log_database_target
 
+    patch_sqlalchemy_asyncpg_connect()
     log_database_target(settings.database_url)
 
 engine = create_async_engine(

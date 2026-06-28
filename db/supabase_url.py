@@ -105,7 +105,25 @@ def normalize_supabase_database_url(url: str) -> str:
         url = _replace_host(url, override_host)
         logger.info("Supabase DB: pooler host override -> %s", override_host)
 
-    return url
+    return _strip_unsafe_url_query(url)
+
+
+def _strip_unsafe_url_query(url: str) -> str:
+    """Query-параметры вроде pgbouncer= попадают в asyncpg.connect и ломают старые версии."""
+    if "?" not in url:
+        return url
+    base, query = url.split("?", 1)
+    drop = frozenset({"pgbouncer", "prepared_statement_cache_size", "prepared_statement_name_func"})
+    kept = []
+    for part in query.split("&"):
+        if not part:
+            continue
+        key = part.split("=", 1)[0].lower()
+        if key not in drop:
+            kept.append(part)
+    if kept:
+        return f"{base}?{'&'.join(kept)}"
+    return base
 
 
 def log_database_target(url: str) -> None:
