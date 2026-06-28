@@ -28,6 +28,16 @@ def normalize_channel_identifier(raw: str) -> str:
 
 CHANNEL_PATTERN = re.compile(r"^[\w]{3,}$", re.UNICODE)
 
+_user_create_locks: dict[int, asyncio.Lock] = {}
+
+
+def _user_create_lock(telegram_id: int) -> asyncio.Lock:
+    lock = _user_create_locks.get(telegram_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _user_create_locks[telegram_id] = lock
+    return lock
+
 _PLACEHOLDER_URLS = frozenset(
     {
         "—",
@@ -175,30 +185,44 @@ class UserRepository:
         if get_settings().is_sqlite:
             return await self._get_or_create_sqlite(telegram_id, username)
 
-        last_error: DBAPIError | None = None
-        for attempt in range(4):
-            try:
-                async with open_db_session() as ins_sess:
-                    ins_repo = UserRepository(ins_sess)
-                    _user, created = await ins_repo._insert_user_postgres(telegram_id, username)
-                    await ins_sess.commit()
-                attached = await self.get_by_telegram_id(telegram_id)
-                if not attached:
-                    raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
-                return attached, created
-            except DBAPIError as exc:
-                await self.session.rollback()
-                existing = await self.get_by_telegram_id(telegram_id)
-                if existing:
-                    return existing, False
-                if self._is_lock_timeout(exc) and attempt < 3:
-                    last_error = exc
-                    await asyncio.sleep(0.05 * (2**attempt))
-                    continue
-                raise
-        if last_error is not None:
-            raise last_error
-        raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
+        async with _user_create_lock(telegram_id):
+            user = await self.get_by_telegram_id(telegram_id)
+            if user:
+                changed = False
+                if username and user.username != username:
+                    user.username = username
+                    changed = True
+                if not user.notifications_enabled:
+                    user.notifications_enabled = True
+                    changed = True
+                if changed:
+                    await self.session.flush()
+                return user, False
+
+            last_error: DBAPIError | None = None
+            for attempt in range(6):
+                try:
+                    async with open_db_session() as ins_sess:
+                        ins_repo = UserRepository(ins_sess)
+                        _user, created = await ins_repo._insert_user_postgres(telegram_id, username)
+                        await ins_sess.commit()
+                    attached = await self.get_by_telegram_id(telegram_id)
+                    if not attached:
+                        raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
+                    return attached, created
+                except DBAPIError as exc:
+                    await self.session.rollback()
+                    existing = await self.get_by_telegram_id(telegram_id)
+                    if existing:
+                        return existing, False
+                    if self._is_lock_timeout(exc) and attempt < 5:
+                        last_error = exc
+                        await asyncio.sleep(0.08 * (2**attempt))
+                        continue
+                    raise
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
 
     async def set_notifications_enabled(self, user_id: int, enabled: bool) -> None:
         user = await self.get_by_id(user_id)

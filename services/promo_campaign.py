@@ -10,7 +10,7 @@ from pathlib import Path
 import asyncio
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 from analytics.event_types import (
     CAMPAIGN_APPLY_CLICK,
@@ -180,10 +180,19 @@ async def send_campaign_to_user(
                 )
                 await session.commit()
                 break
-            except OperationalError as exc:
+            except (OperationalError, DBAPIError) as exc:
                 await session.rollback()
-                if "locked" not in str(exc).lower() or attempt >= 4:
+                msg = str(exc).lower()
+                if "lock" not in msg and "locked" not in msg:
                     raise
+                if attempt >= 4:
+                    logger.warning(
+                        "campaign delivery record failed slug=%s user=%s: %s",
+                        campaign.slug,
+                        user.id,
+                        exc,
+                    )
+                    break
                 await asyncio.sleep(0.4 * (attempt + 1))
     return "sent"
 
@@ -214,6 +223,8 @@ async def run_campaign(slug: str, *, force: bool = False) -> dict[str, int]:
 
 
 async def get_campaign_stats(slug: str) -> dict:
+    slug_needle = f'%"campaign": "{slug}"%'
+
     async with async_session_factory() as session:
         from sqlalchemy import func, select
 
@@ -222,7 +233,16 @@ async def get_campaign_stats(slug: str) -> dict:
             .select_from(PromoCampaignDelivery)
             .where(PromoCampaignDelivery.campaign_slug == slug)
         )
-        sent = int(sent_result.scalar_one())
+        sent_from_deliveries = int(sent_result.scalar_one())
+
+        sent_events_result = await session.execute(
+            select(func.count())
+            .select_from(Event)
+            .where(Event.event_type == CAMPAIGN_SENT)
+            .where(Event.metadata_json.like(slug_needle))
+        )
+        sent_from_events = int(sent_events_result.scalar_one())
+        sent = max(sent_from_deliveries, sent_from_events)
 
         events_result = await session.execute(
             select(Event, User.username, User.telegram_id)
@@ -237,6 +257,8 @@ async def get_campaign_stats(slug: str) -> dict:
                     )
                 )
             )
+            .where(Event.metadata_json.like(slug_needle))
+            .order_by(Event.created_at.desc())
         )
         rows = list(events_result.all())
 
@@ -248,6 +270,8 @@ async def get_campaign_stats(slug: str) -> dict:
     telegram_list: list[str] = []
 
     for event, username, telegram_id in rows:
+        if event.event_type == CAMPAIGN_SENT:
+            continue
         meta = {}
         if event.metadata_json:
             try:
@@ -256,7 +280,7 @@ async def get_campaign_stats(slug: str) -> dict:
                 pass
         if meta.get("campaign") != slug:
             continue
-        ref = f"@{username}" if username else f"tg:{telegram_id}"
+        ref = f"@{username}" if username else f"tg:{telegram_id or event.user_id}"
         if event.event_type in (CAMPAIGN_TELEGRAM_CLICK, CAMPAIGN_LINK_CLICK):
             telegram_clicks += 1
             if event.user_id:
@@ -273,6 +297,8 @@ async def get_campaign_stats(slug: str) -> dict:
     return {
         "slug": slug,
         "sent": sent,
+        "sent_from_deliveries": sent_from_deliveries,
+        "sent_from_events": sent_from_events,
         "telegram_clicks": telegram_clicks,
         "apply_clicks": apply_clicks,
         "unique_telegram": len(telegram_users),
@@ -292,6 +318,14 @@ def format_campaign_stats_report(data: dict) -> str:
         f"📱 Telegram: {data['telegram_clicks']} ({data['unique_telegram']} уник.) — CTR {data['ctr_telegram']}%",
         f"📝 Форма заявки: {data['apply_clicks']} ({data['unique_apply']} уник.) — CTR {data['ctr_apply']}%",
     ]
+    if data["sent"] == 0:
+        lines.extend(
+            [
+                "",
+                "ℹ️ На новой базе (Supabase) старые цифры не переносятся.",
+                f"Запусти рассылку: /campaign_send {data['slug']}",
+            ]
+        )
     if data.get("apply_list"):
         lines.extend(["", "📝 Открыли форму:", *([f"  • {u}" for u in data["apply_list"]])])
     if data.get("telegram_list"):

@@ -423,6 +423,7 @@ def _interest_tokens(text: str) -> set[str]:
 
 
 def _format_score(format_preferences: list[str], blob: str) -> float:
+    """Слабый сигнал (+0.5 за совпадение, без штрафа за другой формат)."""
     if not format_preferences or len(format_preferences) >= 2:
         return 0.0
     want = format_preferences[0]
@@ -430,16 +431,10 @@ def _format_score(format_preferences: list[str], blob: str) -> float:
     offline_markers = ("офлайн", "offline", "оффлайн", "очно", "очный", "offline")
     has_online = any(m in blob for m in online_markers)
     has_offline = any(m in blob for m in offline_markers)
-    if want == "online":
-        if has_online and not has_offline:
-            return 1.5
-        if has_offline and not has_online:
-            return -1.5
-    if want == "offline":
-        if has_offline and not has_online:
-            return 1.5
-        if has_online and not has_offline:
-            return -1.5
+    if want == "online" and has_online and not has_offline:
+        return 0.5
+    if want == "offline" and has_offline and not has_online:
+        return 0.5
     return 0.0
 
 

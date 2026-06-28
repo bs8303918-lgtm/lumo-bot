@@ -146,29 +146,8 @@ def apply_interest_defaults(profile: InterestProfile, text: str) -> None:
 
 
 def _build_admin_questions(text: str, profile: InterestProfile) -> list[str]:
-    questions: list[str] = []
-    lowered = text.lower()
-
-    if _is_broad_query(text):
-        questions.append("Запрос очень широкий — уточнить тип возможностей и сферу?")
-
-    if not profile.types and not profile.domains:
-        questions.append("Не определились тип возможности и предметная область — нужно уточнение?")
-
-    if not profile.formats and re.search(r"формат|online|offline|онлайн|офлайн|очно", lowered):
-        questions.append("Упомянут формат, но не ясен онлайн или офлайн — уточнить?")
-
-    if profile.formats == ["online"] and "казахстан" in lowered and "междун" not in lowered:
-        questions.append("Только онлайн или офлайн в KZ тоже подходит?")
-
-    age_match = re.search(r"(\d{1,2})\s*(?:лет|года|year)", lowered)
-    if age_match and int(age_match.group(1)) < 14 and not profile.types:
-        questions.append(f"Возраст {age_match.group(1)} — проверить, какие типы доступны?")
-
-    if len(text.strip()) < 40 and not profile.domains:
-        questions.append("Короткий запрос без явной сферы — расширить категории?")
-
-    return questions[:4]
+    """Admin review disabled — no questions sent to Telegram."""
+    return []
 
 
 def parse_format_preferences(raw: str | None) -> list[str]:
