@@ -7,6 +7,7 @@ from aiogram.types import (
 )
 
 from config import get_settings
+from services.url_utils import is_valid_telegram_button_url, normalize_https_url
 from services.interest_matcher import is_domain_category, is_standard_category, tag_display
 
 BTN_TRACK_CHANNEL = "🔍 Отслеживать канал"
@@ -39,8 +40,8 @@ def webapp_open_inline() -> InlineKeyboardMarkup | None:
 
 
 def community_join_inline() -> InlineKeyboardMarkup | None:
-    url = get_settings().community_telegram_url.strip()
-    if not url:
+    url = normalize_https_url(get_settings().community_telegram_url)
+    if not url or not is_valid_telegram_button_url(url):
         return None
     return InlineKeyboardMarkup(
         inline_keyboard=[

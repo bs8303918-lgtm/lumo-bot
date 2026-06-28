@@ -119,7 +119,9 @@ async def send_community_invite(
     bot = get_notify_bot()
     inline = community_join_inline()
     if not inline:
-        logger.error("community_telegram_url not configured")
+        logger.error(
+            "community_telegram_url invalid — set COMMUNITY_TELEGRAM_URL=https://t.me/+... in Railway"
+        )
         stats["error"] = stats["target"]
         return stats
 

@@ -493,6 +493,19 @@ async def cmd_community_invite(message: Message) -> None:
     force = "force" in [p.lower() for p in parts[1:]]
     dry_run = "dry" in [p.lower() for p in parts[1:]]
 
+    if not community_join_inline():
+        settings = get_settings()
+        await message.answer(
+            "❌ <b>COMMUNITY_TELEGRAM_URL неверный</b>\n\n"
+            f"Сейчас: <code>{settings.community_telegram_url or '(пусто)'}</code>\n\n"
+            "Railway → Variables:\n"
+            "<code>COMMUNITY_TELEGRAM_URL=https://t.me/+твоя_ссылка</code>\n"
+            "или <code>https://t.me/LumoCommunity</code>\n"
+            "Redeploy → снова /community_invite",
+            parse_mode="HTML",
+        )
+        return
+
     await message.answer(
         f"⏳ Рассылка приглашения в сообщество"
         f"{' · dry-run' if dry_run else ''}…",
