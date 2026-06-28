@@ -1,22 +1,35 @@
-import { Sparkles } from 'lucide-react';
-import { formatPriceKzt } from '../utils/pricing';
+import { useState } from 'react';
+import { Copy, Sparkles } from 'lucide-react';
+import { formatPriceKzt, KASPI_PAYMENT_PHONE } from '../utils/pricing';
+import { getTelegram, haptic } from '../api';
 
-export default function PlanCards({ plans, compact = false }) {
+export default function PlanCards({ plans, compact = false, selectedId, onSelect }) {
   return (
     <div className={compact ? 'space-y-2' : 'space-y-3'}>
       {plans.map((plan) => {
         const featured = plan.featured || plan.id === 'plan_6m';
+        const selected = selectedId === plan.id;
         return (
-          <div
+          <button
             key={plan.id}
-            className="lumo-card relative overflow-hidden"
+            type="button"
+            onClick={() => {
+              haptic('light');
+              onSelect?.(plan);
+            }}
+            className="lumo-card relative overflow-hidden w-full text-left transition active:scale-[0.99]"
             style={
-              featured
+              selected
                 ? {
                     borderColor: 'var(--lumo-accent)',
-                    boxShadow: '0 0 0 1px color-mix(in srgb, var(--lumo-accent) 35%, transparent)',
+                    boxShadow: '0 0 0 2px color-mix(in srgb, var(--lumo-accent) 45%, transparent)',
                   }
-                : undefined
+                : featured
+                  ? {
+                      borderColor: 'var(--lumo-accent)',
+                      boxShadow: '0 0 0 1px color-mix(in srgb, var(--lumo-accent) 35%, transparent)',
+                    }
+                  : undefined
             }
           >
             {featured && (
@@ -62,20 +75,74 @@ export default function PlanCards({ plans, compact = false }) {
                 </div>
               </div>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
   );
 }
 
-export function PricingFooter({ meta, profile, onClose, limitNotice = false }) {
+function KaspiPaymentBlock({ phone, selectedPlan, supportContact }) {
+  const [copied, setCopied] = useState(false);
+  const displayPhone = phone || KASPI_PAYMENT_PHONE;
+
+  const copyPhone = async () => {
+    haptic('light');
+    try {
+      await navigator.clipboard.writeText(displayPhone);
+      setCopied(true);
+      getTelegram()?.HapticFeedback?.notificationOccurred('success');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const support = (supportContact || '@taton4i').replace('@', '');
+
+  return (
+    <div
+      className="rounded-2xl px-4 py-4 space-y-3"
+      style={{ background: 'var(--lumo-surface-muted)' }}
+    >
+      <p className="text-[13px] font-semibold text-center">Оплата через Kaspi</p>
+      {selectedPlan ? (
+        <p className="text-[12px] text-center" style={{ color: 'var(--lumo-text-muted)' }}>
+          Тариф: <strong>{selectedPlan.label}</strong> · переведи{' '}
+          <strong>{formatPriceKzt(selectedPlan.priceKzt)}</strong>
+        </p>
+      ) : (
+        <p className="text-[12px] text-center" style={{ color: 'var(--lumo-text-muted)' }}>
+          Выбери тариф выше и переведи сумму на номер Kaspi
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={copyPhone}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-[16px] font-bold text-white lumo-send-btn"
+      >
+        <Copy size={16} />
+        {displayPhone}
+      </button>
+      <p className="text-[11px] text-center" style={{ color: 'var(--lumo-text-muted)' }}>
+        {copied ? 'Номер скопирован — открой Kaspi и переведи' : 'Нажми, чтобы скопировать номер'}
+      </p>
+      <p className="text-[11px] text-center" style={{ color: 'var(--lumo-text-muted)' }}>
+        После оплаты напиши @{support} — активируем доступ
+      </p>
+    </div>
+  );
+}
+
+export function PricingFooter({ meta, profile, onClose, limitNotice = false, selectedPlan }) {
   const checkout = meta?.startifyCheckoutUrl;
   const enforced = profile?.subscription?.enforced;
+  const kaspiPhone = meta?.kaspiPaymentPhone || KASPI_PAYMENT_PHONE;
+  const useStartify = Boolean(checkout && enforced);
 
   return (
     <div className="space-y-3 mt-4">
-      {checkout && enforced ? (
+      {useStartify ? (
         <a
           href={checkout}
           className="block w-full text-center py-3.5 rounded-2xl text-[15px] font-bold text-white lumo-send-btn"
@@ -83,12 +150,11 @@ export function PricingFooter({ meta, profile, onClose, limitNotice = false }) {
           Оплатить через Kaspi
         </a>
       ) : (
-        <div
-          className="rounded-2xl px-4 py-3 text-[13px] text-center"
-          style={{ background: 'var(--lumo-surface-muted)', color: 'var(--lumo-text-muted)' }}
-        >
-          Оплата скоро через AI Startify · Kaspi
-        </div>
+        <KaspiPaymentBlock
+          phone={kaspiPhone}
+          selectedPlan={selectedPlan}
+          supportContact={meta?.supportContact}
+        />
       )}
 
       {onClose && (

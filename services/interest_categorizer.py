@@ -71,7 +71,7 @@ async def categorize_interest(
     if (
         not skip_llm
         and settings.llm_interest_categorization
-        and settings.llm_configured
+        and settings.llm_user_configured
         and _needs_llm_categorization(profile)
     ):
         try:
@@ -93,7 +93,7 @@ async def categorize_interest(
     apply_interest_defaults(profile, text)
 
     categories = profile.all_categories()
-    if user_id is not None:
+    if user_id is not None and not skip_llm:
         await record_interest_categories(
             user_id=user_id,
             interest_query=text,

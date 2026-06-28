@@ -22,8 +22,11 @@ from logging_setup import log_error
 logger = logging.getLogger(__name__)
 
 _semaphore: asyncio.Semaphore | None = None
+_user_semaphore: asyncio.Semaphore | None = None
 _rate_lock = asyncio.Lock()
+_user_rate_lock = asyncio.Lock()
 _last_request_at: float = 0.0
+_last_user_request_at: float = 0.0
 
 
 def get_semaphore() -> asyncio.Semaphore:
@@ -33,16 +36,34 @@ def get_semaphore() -> asyncio.Semaphore:
     return _semaphore
 
 
-async def _wait_rate_limit() -> None:
-    """Не чаще одного запроса каждые N секунд — укладываемся в ~30 RPM Groq."""
-    global _last_request_at
+def get_user_semaphore() -> asyncio.Semaphore:
+    global _user_semaphore
+    if _user_semaphore is None:
+        _user_semaphore = asyncio.Semaphore(get_settings().llm_user_max_concurrent)
+    return _user_semaphore
+
+
+async def _wait_rate_limit(*, user: bool = False) -> None:
+    """Catalog/monitor LLM — медленнее. user=True — отдельная очередь для интересов."""
+    global _last_request_at, _last_user_request_at
     settings = get_settings()
-    min_gap = settings.llm_request_delay_seconds
-    async with _rate_lock:
-        elapsed = time.monotonic() - _last_request_at
+    if user:
+        min_gap = settings.llm_user_request_delay_seconds
+        lock = _user_rate_lock
+        state = "_last_user_request_at"
+    else:
+        min_gap = settings.llm_request_delay_seconds
+        lock = _rate_lock
+        state = "_last_request_at"
+    async with lock:
+        last = _last_user_request_at if user else _last_request_at
+        elapsed = time.monotonic() - last
         if elapsed < min_gap:
             await asyncio.sleep(min_gap - elapsed)
-        _last_request_at = time.monotonic()
+        if user:
+            _last_user_request_at = time.monotonic()
+        else:
+            _last_request_at = time.monotonic()
 
 
 def _extract_json(text: str):
@@ -195,7 +216,7 @@ class LLMClient:
 
     async def extract_interest_categories(self, interest_query: str) -> tuple[list[str], str | None]:
         prompt = INTEREST_CATEGORIES_PROMPT.format(interest_query=interest_query)
-        data, raw = await self._json_prompt(prompt, max_tokens=256)
+        data, raw = await self._json_prompt(prompt, max_tokens=256, user_profile=True)
         if not data:
             return [], raw
         categories = data.get("categories") or []
@@ -229,13 +250,24 @@ class LLMClient:
             return [int(x) for x in ids if str(x).isdigit()], raw
         return [], raw
 
-    async def _json_prompt(self, prompt: str, max_tokens: int) -> tuple[dict | None, str | None]:
+    async def _json_prompt(
+        self,
+        prompt: str,
+        max_tokens: int,
+        *,
+        user_profile: bool = False,
+    ) -> tuple[dict | None, str | None]:
         raw: str | None = None
-        async with get_semaphore():
+        sem = get_user_semaphore() if user_profile else get_semaphore()
+        async with sem:
             try:
-                await _wait_rate_limit()
+                await _wait_rate_limit(user=user_profile)
                 if self._uses_openai:
-                    raw = await self._openai_generate(prompt, max_tokens=max_tokens)
+                    raw = await self._openai_generate(
+                        prompt,
+                        max_tokens=max_tokens,
+                        user_profile=user_profile,
+                    )
                 else:
                     raw = await self._gemini_generate(prompt, max_tokens=max_tokens)
                 data = _normalize_json_object(_extract_json(raw))
@@ -291,8 +323,20 @@ class LLMClient:
         )
         return response.text or ""
 
-    async def _openai_generate(self, prompt: str, max_tokens: int, json_mode: bool = True) -> str:
+    async def _openai_generate(
+        self,
+        prompt: str,
+        max_tokens: int,
+        json_mode: bool = True,
+        *,
+        user_profile: bool = False,
+    ) -> str:
         url = f"{self.settings.openai_base_url.rstrip('/')}/chat/completions"
+        api_key = (
+            self.settings.openai_user_api_key_effective
+            if user_profile
+            else self.settings.openai_api_key
+        )
         payload: dict = {
             "model": self.settings.openai_model,
             "messages": [{"role": "user", "content": prompt}],
@@ -309,7 +353,7 @@ class LLMClient:
                 response = await client.post(
                     url,
                     headers={
-                        "Authorization": f"Bearer {self.settings.openai_api_key}",
+                        "Authorization": f"Bearer {api_key}",
                         "Content-Type": "application/json",
                     },
                     json=payload,

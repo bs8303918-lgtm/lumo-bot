@@ -3,6 +3,13 @@ export function formatPriceKzt(kzt) {
   return `${kzt.toLocaleString('ru-RU')} ₸`;
 }
 
+/** Ручная оплата через Kaspi (пока без Startify checkout) */
+export const KASPI_PAYMENT_PHONE = '+7 775 499 8313';
+
+export function kaspiPhoneDigits(phone = KASPI_PAYMENT_PHONE) {
+  return phone.replace(/\D/g, '');
+}
+
 /** Запасной прайс — если Railway ещё без /lumo/subscription-plans */
 export const FALLBACK_PLANS = [
   {

@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = "https://api.groq.com/openai/v1"
     openai_model: str = "llama-3.1-8b-instant"
+    # Отдельный Groq-ключ только для категоризации интересов пользователей (не делит лимит с мониторингом)
+    openai_user_api_key: str = ""
+    llm_user_max_concurrent: int = 2
+    llm_user_request_delay_seconds: float = 0.5
 
     # Limits & intervals
     max_user_channels: int = 5
@@ -88,6 +92,7 @@ class Settings(BaseSettings):
     subscriptions_enforced: bool = False
     subscription_preview_enabled: bool = True
     startify_checkout_url: str = ""
+    kaspi_payment_phone: str = "+7 775 499 8313"
 
     # Training data (для будущего fine-tuning)
     training_data_enabled: bool = True
@@ -172,6 +177,16 @@ class Settings(BaseSettings):
         if self.llm_provider.lower() == "openai":
             return bool(self.openai_api_key)
         return bool(self.gemini_api_key)
+
+    @property
+    def llm_user_configured(self) -> bool:
+        if self.llm_provider.lower() == "openai":
+            return bool(self.openai_user_api_key_effective)
+        return bool(self.gemini_api_key)
+
+    @property
+    def openai_user_api_key_effective(self) -> str:
+        return (self.openai_user_api_key or self.openai_api_key).strip()
 
     @property
     def llm_model_name(self) -> str:

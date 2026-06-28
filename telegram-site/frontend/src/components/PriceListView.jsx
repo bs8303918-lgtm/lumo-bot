@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { haptic } from '../api';
 import { resolvePlans } from '../utils/pricing';
@@ -5,9 +6,13 @@ import PlanCards, { PricingFooter, PricingHeader } from './PlanCards';
 
 /** Полноэкранный оверлей при исчерпании лимита (дублирует вкладку «Тарифы») */
 export default function PriceListView({ open, onClose, plans, meta, profile, reason = 'limit' }) {
+  const resolved = resolvePlans(plans);
+  const [selectedPlan, setSelectedPlan] = useState(
+    resolved.find((p) => p.featured || p.id === 'plan_6m') || null,
+  );
+
   if (!open) return null;
 
-  const resolved = resolvePlans(plans);
   const isLimitReason = reason === 'limit';
   const dailyLimit = meta?.aiSearchDailyLimit ?? 3;
 
@@ -40,12 +45,13 @@ export default function PriceListView({ open, onClose, plans, meta, profile, rea
         </div>
 
         <PricingHeader limitNotice={isLimitReason} dailyLimit={dailyLimit} />
-        <PlanCards plans={resolved} />
+        <PlanCards plans={resolved} selectedId={selectedPlan?.id} onSelect={setSelectedPlan} />
         <PricingFooter
           meta={meta}
           profile={profile}
           limitNotice={isLimitReason}
           onClose={handleClose}
+          selectedPlan={selectedPlan}
         />
       </div>
     </div>

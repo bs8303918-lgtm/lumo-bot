@@ -25,7 +25,7 @@ from services.interest_matcher import (
 )
 from services.opportunity_catalog import catalog_repo
 from services.subscription import public_plans, subscription_status
-from bot.background import schedule_interest_llm_refine
+from bot.background import schedule_interest_save
 from services.webapp_catalog import (
     SEARCH_SUGGESTIONS,
     build_category_list,
@@ -90,7 +90,7 @@ async def _search_catalog(
     raw = await repo.get_active_for_user(
         user.id,
         search_types,
-        limit=120,
+        limit=80,
         extra_tags=extra_tags,
     )
     items, matched_categories = match_opportunities_for_user(query, raw, limit=limit)
@@ -113,6 +113,7 @@ async def lumo_meta() -> dict:
         "subscriptionsEnforced": settings.subscriptions_enforced,
         "subscriptionPreviewEnabled": settings.subscription_preview_enabled,
         "startifyCheckoutUrl": settings.startify_checkout_url.strip() or None,
+        "kaspiPaymentPhone": settings.kaspi_payment_phone.strip() or "+7 775 499 8313",
         "plans": public_plans(),
     }
 
@@ -202,8 +203,7 @@ async def set_interest(
     items, _matched, categories = await _search_catalog(session, user, text, limit=12)
 
     if interest_changed:
-        categories = await _persist_interest(session, user, text, skip_llm=True)
-        schedule_interest_llm_refine(user.id, text)
+        schedule_interest_save(user.id, text)
     elif not categories:
         categories = (
             parse_interest_categories(user.interest_categories_json)
@@ -214,19 +214,11 @@ async def set_interest(
     await session.commit()
 
     count = len(items)
-    catalog_count = 0
-    if count == 0:
-        catalog_count = await catalog_repo(session).count_active_for_user(user.id)
     if count:
         message = f"Подобрал {count} {plural_opportunities(count)} под твой запрос."
-    elif catalog_count == 0:
+    elif count == 0:
         message = (
-            "Профиль сохранён. Каталог пока пуст — мониторинг каналов наполняет базу "
-            "(нужен Telethon authorized). Проверь через несколько часов или вкладку Каталог."
-        )
-    else:
-        message = (
-            "По твоему запросу пока ничего не нашёл — профиль сохранён, "
+            "По твоему запросу пока ничего не нашёл — профиль сохраняю, "
             "пришлю в бот, когда появится подходящее."
         )
 
@@ -235,10 +227,9 @@ async def set_interest(
         "categories": category_chips(categories),
         "message": message,
         "items": items,
-        "noMatch": count == 0 and catalog_count > 0,
+        "noMatch": count == 0,
         "suggestions": SEARCH_SUGGESTIONS if count == 0 else [],
         "cardsSentToBot": 0,
-        "catalogCount": catalog_count,
     }
 
 
@@ -364,29 +355,20 @@ async def lumo_match(
 
     if payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
         if (user.interest_query or "").strip() != query:
-            await _persist_interest(session, user, query, skip_llm=True)
-            schedule_interest_llm_refine(user.id, query)
-            user = await UserRepository(session).get_by_id(user.id) or user
+            schedule_interest_save(user.id, query)
 
     count = len(items)
-    catalog_count = 0
     if count:
         message = f"Подобрал {count} {plural_opportunities(count)} под твой запрос."
     elif payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
-        catalog_count = await catalog_repo(session).count_active_for_user(user.id)
-        if catalog_count == 0:
-            message = (
-                "Профиль сохранён. Каталог пока пуст — мониторинг каналов наполняет базу."
-            )
-        else:
-            message = (
-                "По твоему запросу пока ничего не нашёл — профиль сохранён, "
-                "пришлю в бот, когда появится подходящее."
-            )
+        message = (
+            "По твоему запросу пока ничего не нашёл — профиль сохраняю, "
+            "пришлю в бот, когда появится подходящее."
+        )
     else:
         message = "По этому запросу пока ничего не нашёл."
 
-    no_match = count == 0 and (not payload.saveInterest or catalog_count > 0)
+    no_match = count == 0
 
     if payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH:
         await EventRepository(session).log(

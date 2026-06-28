@@ -84,7 +84,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
         suggestions: data.suggestions,
       });
       if (willSaveProfile) {
-        onProfileRefresh?.();
+        setTimeout(() => onProfileRefresh?.(), 800);
         if (!isAdmin && (profile?.aiSearchRemaining ?? 1) <= 1) {
           limitPopupShownRef.current = false;
           setTimeout(() => onOpenPriceList?.('limit'), 400);

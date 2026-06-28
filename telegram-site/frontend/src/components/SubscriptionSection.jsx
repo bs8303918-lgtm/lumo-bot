@@ -1,12 +1,12 @@
 import { Sparkles } from 'lucide-react';
-import { formatPriceKzt, resolvePlans } from '../utils/pricing';
+import { formatPriceKzt, KASPI_PAYMENT_PHONE, resolvePlans } from '../utils/pricing';
 import { haptic } from '../api';
 
 export default function SubscriptionSection({ meta, profile, plans, onOpenPriceList }) {
   if (!meta?.subscriptionPreviewEnabled) return null;
 
   const sub = profile?.subscription;
-  const checkout = meta?.startifyCheckoutUrl;
+  const kaspiPhone = meta?.kaspiPaymentPhone || KASPI_PAYMENT_PHONE;
   const enforced = sub?.enforced;
   const visiblePlans = resolvePlans(plans).slice(0, 3);
 
@@ -34,8 +34,8 @@ export default function SubscriptionSection({ meta, profile, plans, onOpenPriceL
 
       <p className="text-[13px] mb-3" style={{ color: 'var(--lumo-text-muted)' }}>
         {enforced
-          ? 'Оплата через AI Startify · Kaspi'
-          : `Сейчас бесплатно: ${meta?.aiSearchDailyLimit ?? 3} AI-запроса в день. Тарифы — для безлимитного доступа.`}
+          ? `Оплата через Kaspi: ${kaspiPhone}`
+          : `Сейчас бесплатно: ${meta?.aiSearchDailyLimit ?? 3} AI-запроса в день. Тарифы — Kaspi ${kaspiPhone}.`}
       </p>
 
       {sub && (
@@ -68,19 +68,18 @@ export default function SubscriptionSection({ meta, profile, plans, onOpenPriceL
             </div>
             <div className="text-right shrink-0">
               <div className="text-[13px] font-bold">{formatPriceKzt(plan.priceKzt)}</div>
-              {checkout && !enforced && (
-                <span className="text-[10px]" style={{ color: 'var(--lumo-text-muted)' }}>
-                  скоро
-                </span>
-              )}
-              {checkout && enforced && (
-                <a
-                  href={checkout}
+              {onOpenPriceList && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic('light');
+                    onOpenPriceList('manual');
+                  }}
                   className="text-[11px] font-semibold underline"
                   style={{ color: 'var(--lumo-link)' }}
                 >
-                  Оплатить
-                </a>
+                  Kaspi
+                </button>
               )}
             </div>
           </div>
