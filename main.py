@@ -5,7 +5,7 @@ from pathlib import Path
 from bot.app import create_dispatcher
 from bot.instance import close_bot, create_bot
 from config import get_settings
-from db.base import Base, async_session_factory, engine
+from db.base import Base, async_session_factory, configure_supabase_pooler, engine
 from db.migrations import (
     ensure_catalog_multi_per_message,
     ensure_raw_message_columns,
@@ -185,13 +185,12 @@ async def _run_after_boot(boot_ready: asyncio.Event, coro_fn, *, name: str = "wo
 
 
 async def boot(boot_ready: asyncio.Event) -> None:
-    settings = get_settings()
-    boot_ready.set()
-    logger.info("Boot gate open — API/workers may start")
     try:
         await init_schema()
     except Exception as exc:
         logger.error("Schema init failed (API stays up, retry on next deploy): %s", exc)
+    boot_ready.set()
+    logger.info("Boot gate open — API/workers may start")
     try:
         try:
             seeded = await seed_channels_from_file()
@@ -304,6 +303,11 @@ async def main() -> None:
                 "TELEGRAM_API_ID and TELEGRAM_API_HASH in Railway Variables and redeploy"
             )
     logger.info("LLM provider: %s, model: %s", settings.llm_provider, settings.llm_model_name)
+
+    try:
+        await configure_supabase_pooler()
+    except Exception as exc:
+        logger.error("Supabase pooler probe failed: %s", exc)
 
     bot_ref: list = []
     try:

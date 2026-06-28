@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.routes import admin, admin_tracking, catalog, grants, leads, lumo, partner, submissions, traction
 from config import BASE_DIR, get_settings
-from db.base import Base, async_session_factory, engine
+from db.base import Base, async_session_factory, configure_supabase_pooler, engine
 from scripts.seed_catalog import seed_catalog_if_empty
 from services.opportunity_catalog import catalog_repo
 
@@ -43,6 +43,10 @@ async def _api_startup_maintenance() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    try:
+        await configure_supabase_pooler()
+    except Exception as exc:
+        logger.warning("Supabase pooler probe: %s", exc)
     asyncio.create_task(_api_startup_maintenance())
     yield
 
