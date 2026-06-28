@@ -16,13 +16,20 @@ def _uses_supabase_pooler(database_url: str) -> bool:
     return "pooler.supabase.com" in database_url or ":6543" in database_url
 
 
+def _is_supabase_direct(database_url: str) -> bool:
+    return "db." in database_url and ".supabase.co" in database_url
+
+
 def _postgres_connect_args(database_url: str) -> dict:
-    """asyncpg SSL + Supabase pooler (PgBouncer) — без prepared statements."""
+    """asyncpg SSL + Supabase (direct или pooler)."""
     import ssl
 
     args: dict = {}
     pooler = _uses_supabase_pooler(database_url)
-    if pooler or (":5432" in database_url and "supabase" in database_url):
+    supabase = pooler or _is_supabase_direct(database_url) or (
+        ":5432" in database_url and "supabase" in database_url
+    )
+    if supabase:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -35,7 +42,6 @@ def _postgres_connect_args(database_url: str) -> dict:
         args["ssl"] = True
 
     if pooler:
-        # Transaction pooler (6543): SQLAlchemy 2.x передаёт pgbouncer= — нужен asyncpg 0.30+
         args["statement_cache_size"] = 0
         args["prepared_statement_cache_size"] = 0
         args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"

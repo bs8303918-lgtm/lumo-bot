@@ -257,7 +257,9 @@ class Settings(BaseSettings):
             rel = value[len(relative_prefix) :]
             abs_path = (BASE_DIR / rel).resolve()
             return f"sqlite+aiosqlite:///{abs_path.as_posix()}"
-        return value
+        from db.supabase_url import normalize_supabase_database_url
+
+        return normalize_supabase_database_url(value)
 
     @field_validator("lumo_mode", mode="before")
     @classmethod
