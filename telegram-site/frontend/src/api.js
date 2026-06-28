@@ -67,8 +67,27 @@ export async function apiFetch(path, options = {}) {
       throw new Error('Запрос занял слишком долго (>15 сек). Проверь Railway и VITE_API_URL.');
     }
     const hint = API_BASE ? ` (${url})` : '';
+    let extra = '';
+    if (API_BASE) {
+      try {
+        const hc = new AbortController();
+        const ht = setTimeout(() => hc.abort(), 5000);
+        const healthRes = await fetch(`${API}/health`, { signal: hc.signal });
+        clearTimeout(ht);
+        if (healthRes.ok) {
+          const health = await healthRes.json();
+          if (health?.db === 'error') {
+            extra = ' API online, но база недоступна — проверь DATABASE_URL / SUPABASE_POOLER_HOST на Railway.';
+          } else {
+            extra = ' API online — открой Mini App из Telegram (кнопка Open), не из браузера.';
+          }
+        }
+      } catch {
+        extra = ' Railway API не отвечает — проверь деплой и домен в VITE_API_URL.';
+      }
+    }
     throw new Error(
-      `Не удалось связаться с API${hint}. Проверь Railway Online, VITE_API_URL на Vercel и Redeploy после смены переменных.`
+      `Не удалось связаться с API${hint}.${extra} Redeploy после смены переменных.`
     );
   } finally {
     clearTimeout(timer);

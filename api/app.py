@@ -87,7 +87,18 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     async def health() -> dict:
-        return {"status": "ok"}
+        payload: dict = {"status": "ok"}
+        try:
+            from sqlalchemy import text
+
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            payload["db"] = "ok"
+        except Exception as exc:
+            payload["db"] = "error"
+            payload["dbError"] = type(exc).__name__
+            logger.warning("Health DB check failed: %s", exc)
+        return payload
 
     @app.get("/")
     async def root() -> RedirectResponse:
