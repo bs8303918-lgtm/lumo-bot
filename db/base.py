@@ -13,11 +13,13 @@ class Base(DeclarativeBase):
 
 
 def _uses_supabase_pooler(database_url: str) -> bool:
-    return "pooler.supabase.com" in database_url or ":6543" in database_url
+    return "pooler.supabase.com" in database_url
 
 
-def _is_supabase_direct(database_url: str) -> bool:
-    return "db." in database_url and ".supabase.co" in database_url
+def _is_supabase_host(database_url: str) -> bool:
+    return _uses_supabase_pooler(database_url) or (
+        "supabase.co" in database_url and "postgresql" in database_url
+    )
 
 
 def _postgres_connect_args(database_url: str) -> dict:
@@ -26,9 +28,7 @@ def _postgres_connect_args(database_url: str) -> dict:
 
     args: dict = {}
     pooler = _uses_supabase_pooler(database_url)
-    supabase = pooler or _is_supabase_direct(database_url) or (
-        ":5432" in database_url and "supabase" in database_url
-    )
+    supabase = _is_supabase_host(database_url)
     if supabase:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -50,6 +50,11 @@ def _postgres_connect_args(database_url: str) -> dict:
 
 
 settings = get_settings()
+
+if settings.database_url.startswith("postgresql"):
+    from db.supabase_url import log_database_target
+
+    log_database_target(settings.database_url)
 
 engine_kwargs: dict = {
     "echo": False,

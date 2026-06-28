@@ -1,68 +1,106 @@
-"""Нормализация Supabase DATABASE_URL — pooler часто ломается на Railway."""
+"""Нормализация Supabase DATABASE_URL для Railway (IPv4 + pooler)."""
 
 from __future__ import annotations
 
 import logging
 import os
 import re
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote, unquote, urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
 _PROJECT_REF_RE = re.compile(r"^postgres\.([a-z0-9]{10,30})$", re.I)
 
 
-def _on_railway() -> bool:
-    return bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
+def _use_direct_explicit() -> bool:
+    return os.environ.get("SUPABASE_USE_DIRECT", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "direct",
+    )
 
 
-def _use_direct_preferred() -> bool:
-    raw = os.environ.get("SUPABASE_USE_DIRECT", "").strip().lower()
-    if raw in ("0", "false", "no", "pooler"):
-        return False
-    if raw in ("1", "true", "yes", "direct"):
-        return True
-    return _on_railway()
-
-
-def normalize_supabase_database_url(url: str) -> str:
-    """
-    Transaction pooler (6543) + SQLAlchemy/asyncpg → pgbouncer/tenant errors.
-    На Railway по умолчанию: direct db.PROJECT_REF.supabase.co:5432 (user postgres).
-    DATABASE_URL в Variables менять не нужно — достаточно pooler-строки из Supabase.
-    """
-    if not url.startswith("postgresql"):
-        return url
-
+def _to_direct(url: str) -> str | None:
     raw = url.replace("postgresql+asyncpg://", "postgresql://", 1)
     parsed = urlparse(raw)
-    host = (parsed.hostname or "").lower()
     username = unquote(parsed.username or "")
     password = parsed.password
     if not password:
-        return url
-
-    if host.startswith("db.") and host.endswith(".supabase.co") and username == "postgres":
-        return url
-
-    if not _use_direct_preferred():
-        return url
-
+        return None
     ref: str | None = None
     m = _PROJECT_REF_RE.match(username)
     if m:
         ref = m.group(1)
-    elif host.startswith("db.") and host.endswith(".supabase.co"):
-        ref = host.removeprefix("db.").removesuffix(".supabase.co")
-
+    elif (parsed.hostname or "").startswith("db."):
+        ref = (parsed.hostname or "").removeprefix("db.").removesuffix(".supabase.co")
     if not ref:
+        return None
+    encoded_pw = quote(unquote(password), safe="")
+    return f"postgresql+asyncpg://postgres:{encoded_pw}@db.{ref}.supabase.co:5432/postgres"
+
+
+def _replace_host(url: str, new_host: str) -> str:
+    raw = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    parsed = urlparse(raw)
+    port = parsed.port or 5432
+    netloc = parsed.netloc.split("@", 1)
+    if len(netloc) != 2:
+        return url
+    auth, _old = netloc
+    rebuilt = urlunparse(
+        (
+            "postgresql",
+            f"{auth}@{new_host}:{port}",
+            parsed.path or "/postgres",
+            "",
+            "",
+            "",
+        )
+    )
+    return rebuilt.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+
+def normalize_supabase_database_url(url: str) -> str:
+    """
+    Railway (IPv4): НЕ direct db.*.supabase.co — часто Network unreachable.
+
+    По умолчанию:
+    - transaction pooler :6543 → session pooler :5432 (тот же хост из DATABASE_URL)
+    - optional SUPABASE_POOLER_HOST=aws-0-xxx.pooler.supabase.com если хост в URL неверный
+    - direct только при SUPABASE_USE_DIRECT=true
+    """
+    if not url.startswith("postgresql"):
         return url
 
-    encoded_pw = quote(unquote(password), safe="")
-    direct = f"postgresql+asyncpg://postgres:{encoded_pw}@db.{ref}.supabase.co:5432/postgres"
-    if direct != url:
-        logger.info(
-            "Supabase DB: using direct connection db.%s.supabase.co (set SUPABASE_USE_DIRECT=pooler to keep pooler)",
-            ref,
-        )
-    return direct
+    if _use_direct_explicit():
+        direct = _to_direct(url)
+        if direct:
+            logger.info("Supabase DB: direct connection (SUPABASE_USE_DIRECT=true)")
+            return direct
+
+    if "pooler.supabase.com" in url and ":6543" in url:
+        updated = url.replace(":6543", ":5432", 1)
+        if updated != url:
+            logger.info("Supabase DB: session pooler :5432 instead of transaction :6543")
+            url = updated
+
+    override_host = os.environ.get("SUPABASE_POOLER_HOST", "").strip()
+    if override_host and "pooler.supabase.com" in url:
+        url = _replace_host(url, override_host)
+        logger.info("Supabase DB: pooler host override -> %s", override_host)
+
+    return url
+
+
+def log_database_target(url: str) -> None:
+    if not url.startswith("postgresql"):
+        return
+    raw = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    parsed = urlparse(raw)
+    logger.info(
+        "DB target: host=%s port=%s user=%s",
+        parsed.hostname,
+        parsed.port,
+        parsed.username,
+    )

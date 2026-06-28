@@ -28,7 +28,8 @@ async def run_with_retry(
             attempt += 1
             log_error(logger, name, exc, {"attempt": attempt})
             if on_critical and attempt >= max_retries:
-                await on_critical(exc)
+                if attempt == max_retries:
+                    await on_critical(exc)
             delay = min(base_delay * (2 ** (attempt - 1)), 300)
             logger.warning("%s failed (attempt %d), retry in %.1fs", name, attempt, delay)
             await asyncio.sleep(delay)
