@@ -34,19 +34,21 @@ export default function CatalogView({ onOpenItem }) {
 
     try {
       const data = await apiFetch(`/lumo/opportunities?${params}`);
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current) return 0;
 
       const nextItems = data.items || [];
       setItems((prev) => (append ? [...prev, ...nextItems] : nextItems));
       setTotal(data.total ?? nextItems.length);
       setHasMore(Boolean(data.hasMore));
+      return nextItems.length;
     } catch {
-      if (requestId !== requestIdRef.current) return;
+      if (requestId !== requestIdRef.current) return 0;
       if (!append) {
         setItems([]);
         setTotal(0);
         setHasMore(false);
       }
+      return 0;
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);
@@ -62,7 +64,9 @@ export default function CatalogView({ onOpenItem }) {
       setLoading(true);
       setLoadError(null);
       try {
-        const data = await apiFetch(`/lumo/catalog-bootstrap?limit=${PAGE_SIZE}`);
+        const data = await apiFetch(`/lumo/catalog-bootstrap?limit=${PAGE_SIZE}`, {
+          timeoutMs: 25000,
+        });
         if (cancelled) return;
         setCategories(data.categories || []);
         setItems(data.items || []);
@@ -71,14 +75,18 @@ export default function CatalogView({ onOpenItem }) {
         bootstrappedRef.current = true;
       } catch (err) {
         if (!cancelled) {
-          setLoadError(err.message || 'Не удалось загрузить каталог');
+          const fallbackCount = await fetchPage(0, false, 'all', '');
+          if (fallbackCount > 0) {
+            setLoadError(null);
+          } else {
+            setLoadError(err.message || 'Не удалось загрузить каталог');
+          }
           try {
             const cats = await apiFetch('/lumo/categories');
             if (!cancelled) setCategories(cats);
           } catch {
             /* ignore */
           }
-          await fetchPage(0, false, 'all', '');
           bootstrappedRef.current = true;
         }
       } finally {
@@ -178,7 +186,7 @@ export default function CatalogView({ onOpenItem }) {
         })}
       </div>
 
-      {loadError && !loading && (
+      {loadError && !loading && items.length === 0 && (
         <p className="text-center py-3 text-[12px] text-red-400 mb-2">{loadError}</p>
       )}
 

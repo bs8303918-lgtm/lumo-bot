@@ -78,6 +78,8 @@ export async function apiFetch(path, options = {}) {
           const health = await healthRes.json();
           if (health?.db === 'error') {
             extra = ' API online, но база недоступна — проверь DATABASE_URL / SUPABASE_POOLER_HOST на Railway.';
+          } else if (getTelegram()?.initData) {
+            extra = ' API online — повтори через несколько секунд или потяни экран вниз.';
           } else {
             extra = ' API online — открой Mini App из Telegram (кнопка Open), не из браузера.';
           }
