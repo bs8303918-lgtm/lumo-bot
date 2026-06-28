@@ -468,6 +468,47 @@ async def cmd_maintenance_resend(message: Message) -> None:
     )
 
 
+@router.message(Command("db_check"), AdminFilter())
+async def cmd_db_check(message: Message) -> None:
+    """Проверка Supabase pooler и текущего DATABASE_URL."""
+    from urllib.parse import urlparse
+
+    from db.base import configure_supabase_pooler, engine
+    from db.pooler_probe import extract_project_ref, probe_working_database_url
+    from sqlalchemy import text
+
+    settings = get_settings()
+    raw = settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    parsed = urlparse(raw)
+    ref = extract_project_ref(settings.database_url)
+
+    lines = [
+        "🗄 <b>Database check</b>",
+        f"host: <code>{parsed.hostname}:{parsed.port}</code>",
+        f"user: <code>{parsed.username}</code>",
+        f"project ref: <code>{ref or '?'}</code>",
+    ]
+
+    try:
+        working = await probe_working_database_url(settings.database_url)
+        if working != settings.database_url:
+            wp = urlparse(working.replace("postgresql+asyncpg://", "postgresql://", 1))
+            lines.append(f"probe OK: <code>{wp.hostname}:{wp.port}</code>")
+            lines.append("→ задай <code>SUPABASE_POOLER_HOST</code> в Railway")
+        await configure_supabase_pooler()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        lines.append("✅ SELECT 1 OK")
+    except Exception as exc:
+        lines.append(f"❌ {type(exc).__name__}: {exc}")
+        lines.append(
+            "\nSupabase → Connect → URI → скопируй host в "
+            "<code>SUPABASE_POOLER_HOST</code> и Redeploy"
+        )
+
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+
 @router.message(Command("community_stats"), AdminFilter())
 async def cmd_community_stats(message: Message) -> None:
     stats = await get_community_invite_stats()

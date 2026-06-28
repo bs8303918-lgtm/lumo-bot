@@ -105,6 +105,21 @@ def normalize_supabase_database_url(url: str) -> str:
         url = _replace_host(url, override_host)
         logger.info("Supabase DB: pooler host override -> %s", override_host)
 
+    ref_env = os.environ.get("SUPABASE_PROJECT_REF", "").strip()
+    if ref_env and "pooler.supabase.com" in url:
+        raw = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        parsed = urlparse(raw)
+        username = unquote(parsed.username or "")
+        if username == "postgres":
+            fixed_user = f"postgres.{ref_env}"
+            auth = parsed.netloc.split("@", 1)[0]
+            password_part = auth.split(":", 1)[-1] if ":" in auth else ""
+            new_auth = f"{fixed_user}:{password_part}"
+            url = _replace_host(url, parsed.hostname or "").replace(
+                f"{auth}@", f"{new_auth}@"
+            )
+            logger.info("Supabase DB: username postgres -> %s", fixed_user)
+
     return _strip_unsafe_url_query(url)
 
 
