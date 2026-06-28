@@ -11,6 +11,7 @@ from llm.json_utils import coerce_llm_dict
 from llm.spam_filter import (
     is_invalid_opportunity_extraction,
     is_likely_digest_or_roundup,
+    is_likely_interview_or_rubric,
     is_likely_spam_or_ad,
 )
 from services.catalog_dedup import catalog_dedupe_keys
@@ -675,6 +676,11 @@ class OpportunityCatalogRepository:
                 continue
             is_digest, _ = is_likely_digest_or_roundup(source_text or "")
             if is_digest:
+                entry.is_active = False
+                deactivated += 1
+                continue
+            is_rubric, _ = is_likely_interview_or_rubric(source_text or "")
+            if is_rubric:
                 entry.is_active = False
                 deactivated += 1
                 continue

@@ -245,6 +245,74 @@ def is_likely_results_news(text: str) -> tuple[bool, str | None]:
     return False, None
 
 
+def is_likely_interview_or_rubric(text: str) -> tuple[bool, str | None]:
+    """
+    Рубрики, интервью с фаундерами, промо Hub Space — не открытая возможность.
+    Пример: «Встречайте выпуск рубрики По стартапам», кейс ZIZ INC на Astana Hub.
+    """
+    if not text or len(text.strip()) < 40:
+        return False, None
+
+    lowered = text.lower()
+
+    rubric_markers = (
+        "встречайте новый выпуск",
+        "новый выпуск рубрик",
+        "рубрики «по стартапам»",
+        "рубрике «по стартапам»",
+        "наш сегодняшний герой",
+        "сегодняшний герой",
+        "кейіпкеріміз",
+        "бұл шығарылымда",
+        "в этом выпуске мы поговорили",
+        "в этом выпуске мы поговорили",
+        "поговорили о том, чем занимается стартап",
+        "starтapтар бойынша",
+        "стартаптар бойынша",
+    )
+    if any(m in lowered for m in rubric_markers):
+        if not _has_open_call_signal(lowered):
+            return True, "rubric_interview"
+
+    if ("выпуск" in lowered or "шыгарылым" in lowered) and any(
+        w in lowered for w in ("герой", "кейіпкер", "фаундер", "founder", "fauner")
+    ):
+        if not _has_open_call_signal(lowered):
+            return True, "rubric_episode"
+
+    if "hub space" in lowered and any(
+        w in lowered for w in ("присоединя", "қосыл", "astanahub.com", "hubspace")
+    ):
+        if not _has_open_call_signal(lowered):
+            return True, "hubspace_promo"
+
+    return False, None
+
+
+def _has_open_call_signal(lowered_text: str) -> bool:
+    """Явный открытый набор / дедлайн — тогда не отсекаем как рубрику."""
+    return any(
+        signal in lowered_text
+        for signal in (
+            "дедлайн",
+            "deadline",
+            "подать заяв",
+            "прием заяв",
+            "приём заяв",
+            "регистрац",
+            "register",
+            "apply now",
+            "отбор участник",
+            "набор участник",
+            "принимаются заяв",
+            "до 0",
+            "до 1",
+            "до 2",
+            "до 3",
+        )
+    ) or bool(re.search(r"до\s+\d{1,2}\.\d{1,2}", lowered_text))
+
+
 def is_likely_digest_or_roundup(text: str) -> tuple[bool, str | None]:
     """Подборки, YouTube-дайджесты, списки ивентов — не одна конкретная возможность."""
     if not text or len(text.strip()) < 15:
@@ -312,6 +380,10 @@ def is_invalid_opportunity_extraction(data, source_text: str) -> tuple[bool, str
     if not data or not data.get("is_opportunity"):
         return False, None
 
+    is_rubric, rubric_reason = is_likely_interview_or_rubric(source_text)
+    if is_rubric:
+        return True, rubric_reason
+
     is_news, news_reason = is_likely_results_news(source_text)
     if is_news:
         return True, news_reason
@@ -340,6 +412,9 @@ def is_invalid_opportunity_extraction(data, source_text: str) -> tuple[bool, str
             return True, "vague_title"
         if is_question:
             return True, "vague_title_question"
+        is_rubric, _ = is_likely_interview_or_rubric(source_text)
+        if is_rubric:
+            return True, "vague_title_rubric"
 
     return False, None
 
@@ -364,6 +439,10 @@ def is_likely_spam_or_ad(text: str) -> tuple[bool, str | None]:
     is_consulting, consulting_reason = is_likely_consulting_promo(text)
     if is_consulting:
         return True, consulting_reason
+
+    is_rubric, rubric_reason = is_likely_interview_or_rubric(text)
+    if is_rubric:
+        return True, rubric_reason
 
     lowered = text.lower()
 

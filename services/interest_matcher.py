@@ -656,12 +656,24 @@ def rank_for_user(
     if not items:
         return []
 
-    scored = [
-        (relevance_score(interest_query, item, format_preferences=format_preferences), item)
-        for item in items
-    ]
+    from llm.spam_filter import is_likely_interview_or_rubric, is_likely_spam_or_ad
+
+    scored: list[tuple[float, CatalogOpportunity]] = []
+    for item in items:
+        blob = " ".join(
+            filter(None, [item.title, item.description, item.requirements, interest_query])
+        )
+        raw = ""
+        if getattr(item, "raw_message", None) and getattr(item.raw_message, "text", None):
+            raw = item.raw_message.text
+        source = raw or blob
+        if is_likely_spam_or_ad(source)[0] or is_likely_interview_or_rubric(source)[0]:
+            continue
+        score = relevance_score(interest_query, item, format_preferences=format_preferences)
+        if score >= min_score:
+            scored.append((score, item))
     scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [item for score, item in scored if score >= min_score][:limit]
+    return [item for _, item in scored[:limit]]
 
 
 def categories_to_json(categories: list[str]) -> str:
