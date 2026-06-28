@@ -176,18 +176,24 @@ async def _on_monitor_critical(exc: Exception) -> None:
     await notify_admin(f"🚨 Lumo: воркер мониторинга не восстановился: {exc}")
 
 
-async def _run_after_boot(boot_ready: asyncio.Event, coro_fn):
+async def _run_after_boot(boot_ready: asyncio.Event, coro_fn, *, name: str = "worker") -> None:
     await boot_ready.wait()
-    await coro_fn()
+    try:
+        await coro_fn()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.error("%s crashed: %s", name, exc)
 
 
 async def boot(boot_ready: asyncio.Event) -> None:
     settings = get_settings()
+    boot_ready.set()
+    logger.info("Boot gate open — API/workers may start")
     try:
         await init_schema()
-    finally:
-        boot_ready.set()
-        logger.info("Schema ready — API/workers unlocked")
+    except Exception as exc:
+        logger.error("Schema init failed (API stays up, retry on next deploy): %s", exc)
     try:
         try:
             seeded = await seed_channels_from_file()
@@ -226,22 +232,35 @@ async def _setup_webapp(bot) -> None:
 
 async def _run_bot_after_boot(boot_ready: asyncio.Event, bot_ref: list) -> None:
     await boot_ready.wait()
-    bot = create_bot()
-    bot_ref.append(bot)
-    await _setup_webapp(bot)
-    await run_bot(bot)
+    try:
+        bot = create_bot()
+        bot_ref.append(bot)
+        await _setup_webapp(bot)
+        await run_bot(bot)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.error("Bot polling crashed: %s", exc)
 
 
 async def _setup_bot_only(boot_ready: asyncio.Event, bot_ref: list) -> None:
     await boot_ready.wait()
-    bot = create_bot()
-    bot_ref.append(bot)
-    await _setup_webapp(bot)
+    try:
+        bot = create_bot()
+        bot_ref.append(bot)
+        await _setup_webapp(bot)
+    except Exception as exc:
+        logger.error("Bot setup failed: %s", exc)
 
 
 async def _run_posted_at_after_boot(boot_ready: asyncio.Event) -> None:
     await boot_ready.wait()
-    await run_posted_at_backfill()
+    try:
+        await run_posted_at_backfill()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.error("posted_at backfill crashed: %s", exc)
 
 
 async def main() -> None:
@@ -291,30 +310,37 @@ async def main() -> None:
     bot_ref: list = []
     try:
         boot_ready = asyncio.Event()
-        tasks: list = [boot(boot_ready)]
+        tasks: list = []
+
+        run_api = settings.api_enabled or (
+            settings.is_railway and settings.lumo_mode.lower() != "bot"
+        )
+        if run_api:
+            tasks.append(run_api_server())
+
+        tasks.append(boot(boot_ready))
 
         if settings.is_worker and not settings.is_api_only:
-            if settings.api_enabled:
-                tasks.append(run_api_server())
             tasks.extend(
                 [
-                    _run_after_boot(boot_ready, run_monitor),
-                    _run_after_boot(boot_ready, run_llm_processor),
+                    _run_after_boot(boot_ready, run_monitor, name="monitor"),
+                    _run_after_boot(boot_ready, run_llm_processor, name="llm"),
                     _run_posted_at_after_boot(boot_ready),
                 ]
             )
-        elif settings.is_api_only and settings.api_enabled:
-            tasks.append(run_api_server())
 
         if settings.is_bot_polling:
             tasks.append(_run_bot_after_boot(boot_ready, bot_ref))
-        elif settings.telegram_bot_token:
+        elif settings.telegram_bot_token and not settings.is_api_only:
             tasks.append(_setup_bot_only(boot_ready, bot_ref))
 
-        if len(tasks) <= 1:
-            raise SystemExit("Nothing to run — set LUMO_MODE to full, worker, or bot")
+        if not tasks:
+            raise SystemExit("Nothing to run — set LUMO_MODE to full, worker, api, or bot")
 
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
+                logger.error("Task %s failed: %s", idx, result)
     finally:
         await LLMClient.close_http()
         if bot_ref:

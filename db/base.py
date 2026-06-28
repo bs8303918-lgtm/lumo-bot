@@ -22,6 +22,7 @@ def _postgres_connect_args(database_url: str) -> dict:
         args["ssl"] = ctx
         args["statement_cache_size"] = 0
         args["command_timeout"] = 60
+        args["timeout"] = 15
     elif "pooler.supabase.com" in database_url or ":5432" in database_url:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -29,6 +30,7 @@ def _postgres_connect_args(database_url: str) -> dict:
         args["ssl"] = ctx
         args["statement_cache_size"] = 0
         args["command_timeout"] = 60
+        args["timeout"] = 15
     elif "railway.internal" in database_url:
         pass
     else:
