@@ -40,6 +40,22 @@ def _to_direct(url: str) -> str | None:
     return f"postgresql+asyncpg://postgres:{encoded_pw}@db.{ref}.supabase.co:5432/postgres"
 
 
+def _fix_pooler_host(hostname: str | None) -> str | None:
+    """
+    Частая ошибка: aws-1-ap-south-1 в Railway/docs при том что проект на aws-0.
+    Явный SUPABASE_POOLER_HOST всегда важнее.
+    """
+    if not hostname or os.environ.get("SUPABASE_POOLER_HOST", "").strip():
+        return hostname
+    if hostname == "aws-1-ap-south-1.pooler.supabase.com":
+        logger.warning(
+            "Supabase DB: pooler host aws-1-ap-south-1 -> aws-0-ap-south-1 "
+            "(override with SUPABASE_POOLER_HOST if wrong)"
+        )
+        return "aws-0-ap-south-1.pooler.supabase.com"
+    return hostname
+
+
 def _replace_host(url: str, new_host: str) -> str:
     raw = url.replace("postgresql+asyncpg://", "postgresql://", 1)
     parsed = urlparse(raw)
@@ -79,6 +95,13 @@ def normalize_supabase_database_url(url: str) -> str:
             logger.info("Supabase DB: direct connection (SUPABASE_USE_DIRECT=true)")
             return direct
 
+    if "pooler.supabase.com" in url:
+        raw = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        parsed = urlparse(raw)
+        fixed = _fix_pooler_host(parsed.hostname)
+        if fixed and fixed != parsed.hostname:
+            url = _replace_host(url, fixed)
+
     if "pooler.supabase.com" in url and ":6543" in url:
         updated = url.replace(":6543", ":5432", 1)
         if updated != url:
@@ -98,9 +121,16 @@ def log_database_target(url: str) -> None:
         return
     raw = url.replace("postgresql+asyncpg://", "postgresql://", 1)
     parsed = urlparse(raw)
+    try:
+        import asyncpg
+
+        asyncpg_ver = asyncpg.__version__
+    except Exception:
+        asyncpg_ver = "unknown"
     logger.info(
-        "DB target: host=%s port=%s user=%s",
+        "DB target: host=%s port=%s user=%s asyncpg=%s",
         parsed.hostname,
         parsed.port,
         parsed.username,
+        asyncpg_ver,
     )

@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -41,10 +39,10 @@ def _postgres_connect_args(database_url: str) -> dict:
     else:
         args["ssl"] = True
 
-    if pooler:
+    # Transaction pooler :6543 — только asyncpg-native флаг (без prepared_statement_*:
+    # SQLAlchemy 2.x иначе шлёт pgbouncer=True, что ломает asyncpg < 0.30).
+    if pooler and ":6543" in database_url:
         args["statement_cache_size"] = 0
-        args["prepared_statement_cache_size"] = 0
-        args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"
 
     return args
 
@@ -66,7 +64,7 @@ if settings.is_sqlite:
     engine_kwargs["poolclass"] = NullPool
 elif settings.database_url.startswith("postgresql"):
     engine_kwargs["connect_args"] = _postgres_connect_args(settings.database_url)
-    if _uses_supabase_pooler(settings.database_url):
+    if _uses_supabase_pooler(settings.database_url) and ":6543" in settings.database_url:
         engine_kwargs["poolclass"] = NullPool
     else:
         engine_kwargs["pool_size"] = 10
