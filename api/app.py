@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -11,26 +14,36 @@ from db.base import Base, async_session_factory, engine
 from scripts.seed_catalog import seed_catalog_if_empty
 from services.opportunity_catalog import catalog_repo
 
+logger = logging.getLogger(__name__)
+
+
+async def _api_startup_maintenance() -> None:
+    """Не блокирует /api/health — main.py делает то же при старте через init_database()."""
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        from db.migrations import ensure_catalog_multi_per_message, ensure_subscription_columns
+
+        await ensure_catalog_multi_per_message()
+        await ensure_subscription_columns()
+
+        async with async_session_factory() as session:
+            await seed_catalog_if_empty(session)
+            repo = catalog_repo(session)
+            await repo.archive_stale_unclassified(limit=200)
+            await repo.deactivate_expired()
+            await repo.deactivate_stale_without_deadline()
+            await repo.deactivate_old_posts()
+            await session.commit()
+        logger.info("API startup maintenance finished")
+    except Exception as exc:
+        logger.warning("API startup maintenance: %s", exc)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    from db.base import async_session_factory
-    from db.migrations import ensure_catalog_multi_per_message, ensure_subscription_columns
-
-    await ensure_catalog_multi_per_message()
-    await ensure_subscription_columns()
-
-    async with async_session_factory() as session:
-        await seed_catalog_if_empty(session)
-        repo = catalog_repo(session)
-        await repo.archive_stale_unclassified(limit=200)
-        await repo.deactivate_expired()
-        await repo.deactivate_stale_without_deadline()
-        await repo.deactivate_old_posts()
-        await session.commit()
+    asyncio.create_task(_api_startup_maintenance())
     yield
 
 

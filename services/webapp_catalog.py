@@ -19,6 +19,7 @@ from services.interest_matcher import (
     relevance_score,
     wants_startup_focus,
 )
+from services.match_feedback_memory import FeedbackHints, apply_feedback_score
 from services.opportunity_links import (
     normalize_application_url,
     normalize_message_link,
@@ -156,12 +157,30 @@ def build_category_list(counts: dict[str, int], *, total_entries: int | None = N
     return categories
 
 
+def _score_entries(
+    text: str,
+    entries: list[CatalogOpportunity],
+    *,
+    floor: float,
+    feedback_hints: FeedbackHints | None,
+) -> list[tuple[float, CatalogOpportunity]]:
+    scored: list[tuple[float, CatalogOpportunity]] = []
+    for entry in entries:
+        adjusted = apply_feedback_score(relevance_score(text, entry), entry.id, feedback_hints)
+        if adjusted is None or adjusted < floor:
+            continue
+        scored.append((adjusted, entry))
+    scored.sort(key=lambda pair: (pair[0], not is_unknown_deadline(pair[1].deadline)), reverse=True)
+    return scored
+
+
 def match_opportunities_for_user(
     interest_query: str,
     items: list[CatalogOpportunity],
     *,
     limit: int = 12,
     min_score: float | None = None,
+    feedback_hints: FeedbackHints | None = None,
 ) -> tuple[list[dict], list[str]]:
     text = interest_query.strip()
     categories = extract_categories_from_text(text)
@@ -171,19 +190,14 @@ def match_opportunities_for_user(
     intent_types = [c for c in categories if c in OPPORTUNITY_TYPES]
     extra_tags = [c for c in categories if c not in intent_types and c != "другое"]
 
-    scored: list[tuple[float, CatalogOpportunity]] = []
-    for entry in unique:
-        score = relevance_score(text, entry)
-        scored.append((score, entry))
-    scored.sort(key=lambda pair: (pair[0], not is_unknown_deadline(pair[1].deadline)), reverse=True)
-
-    picked = [entry for score, entry in scored if score >= floor][:limit]
+    scored = _score_entries(text, unique, floor=floor, feedback_hints=feedback_hints)
+    picked = [entry for _, entry in scored][:limit]
 
     if wants_startup_focus(categories, text):
         startup_scored = [
             (score, entry)
             for score, entry in scored
-            if entry_startup_related(entry) and score >= floor
+            if entry_startup_related(entry)
         ]
         if startup_scored:
             picked = [entry for _, entry in startup_scored[:limit]]
@@ -201,16 +215,14 @@ def match_opportunities_for_user(
             if type_hit or extra_hit:
                 pool.append(entry)
         if pool:
-            pool_scored = [(relevance_score(text, e), e) for e in pool]
-            pool_scored.sort(
-                key=lambda pair: (pair[0], not is_unknown_deadline(pair[1].deadline)),
-                reverse=True,
-            )
-            picked = [e for s, e in pool_scored if s >= floor][:limit] or [e for _, e in pool_scored][:limit]
+            pool_scored = _score_entries(text, pool, floor=floor, feedback_hints=feedback_hints)
+            picked = [e for _, e in pool_scored][:limit]
 
     if not picked and intent_types:
         wanted = set(intent_types)
-        for _, entry in scored:
+        for entry in unique:
+            if entry.id in (feedback_hints.user_negative_ids if feedback_hints else set()):
+                continue
             if entry.opportunity_type in wanted or wanted & set(entry_all_tags(entry)):
                 picked.append(entry)
                 if len(picked) >= limit:

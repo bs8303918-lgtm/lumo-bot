@@ -98,6 +98,8 @@ async def _search_catalog(
     *,
     limit: int = 12,
 ) -> tuple[list[dict], list[str], list[str]]:
+    from services.match_feedback_memory import load_match_feedback_hints
+
     categories = extract_categories_from_text(query)
     search_types, extra_tags = resolve_catalog_filter(categories)
     repo = catalog_repo(session)
@@ -107,7 +109,13 @@ async def _search_catalog(
         limit=80,
         extra_tags=extra_tags,
     )
-    items, matched_categories = match_opportunities_for_user(query, raw, limit=limit)
+    feedback_hints = await load_match_feedback_hints(user.id, query)
+    items, matched_categories = match_opportunities_for_user(
+        query,
+        raw,
+        limit=limit,
+        feedback_hints=feedback_hints,
+    )
     return items, matched_categories, categories
 
 
@@ -412,6 +420,7 @@ async def _persist_match_feedback(
     helpful: bool,
     categories: list[str],
 ) -> None:
+    from services.match_feedback_memory import invalidate_feedback_cache
     from services.training_collector import record_search_feedback
 
     await record_search_feedback(
@@ -421,6 +430,7 @@ async def _persist_match_feedback(
         helpful=helpful,
         categories=categories,
     )
+    invalidate_feedback_cache(user_id)
 
 
 @router.post("/lumo/match-feedback")
@@ -430,6 +440,14 @@ async def lumo_match_feedback(
     user: User = Depends(get_current_user),
 ) -> dict:
     """👍/👎 по одной карточке — в training_samples task=match."""
+    from services.match_feedback_memory import record_optimistic_feedback
+
+    record_optimistic_feedback(
+        user.id,
+        payload.catalogId,
+        payload.helpful,
+        payload.query.strip(),
+    )
     background_tasks.add_task(
         _persist_match_feedback,
         user.id,
@@ -448,8 +466,11 @@ async def lumo_match_feedback_batch(
     user: User = Depends(get_current_user),
 ) -> dict:
     """Оценка всей выдачи сразу — каждая карточка в training."""
+    from services.match_feedback_memory import record_optimistic_feedback
+
     query = payload.query.strip()
     for catalog_id in payload.catalogIds:
+        record_optimistic_feedback(user.id, catalog_id, payload.helpful, query)
         background_tasks.add_task(
             _persist_match_feedback,
             user.id,

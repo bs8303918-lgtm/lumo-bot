@@ -165,6 +165,29 @@ async def _on_monitor_critical(exc: Exception) -> None:
     await notify_admin(f"🚨 Lumo: воркер мониторинга не восстановился: {exc}")
 
 
+async def _run_after_boot(boot_ready: asyncio.Event, coro_fn):
+    await boot_ready.wait()
+    await coro_fn()
+
+
+async def boot(boot_ready: asyncio.Event) -> None:
+    settings = get_settings()
+    try:
+        await init_database()
+        try:
+            seeded = await seed_channels_from_file()
+        except Exception as exc:
+            logger.warning("Seed channels skipped: %s", exc)
+            seeded = 0
+        logger.info("Seed channels loaded: %d", seeded)
+
+        if settings.auto_build_webapp and settings.serve_mini_app:
+            ensure_webapp_built()
+    finally:
+        boot_ready.set()
+        logger.info("Boot complete — workers unlocked")
+
+
 async def _setup_webapp(bot) -> None:
     settings = get_settings()
     await setup_telegram_webapp(bot)
@@ -178,6 +201,26 @@ async def _setup_webapp(bot) -> None:
             "Mini App URL не задан — кнопка Open не появится. "
             "Укажи PUBLIC_BASE_URL (Railway domain) в переменных окружения."
         )
+
+
+async def _run_bot_after_boot(boot_ready: asyncio.Event, bot_ref: list) -> None:
+    await boot_ready.wait()
+    bot = create_bot()
+    bot_ref.append(bot)
+    await _setup_webapp(bot)
+    await run_bot(bot)
+
+
+async def _setup_bot_only(boot_ready: asyncio.Event, bot_ref: list) -> None:
+    await boot_ready.wait()
+    bot = create_bot()
+    bot_ref.append(bot)
+    await _setup_webapp(bot)
+
+
+async def _run_posted_at_after_boot(boot_ready: asyncio.Event) -> None:
+    await boot_ready.wait()
+    await run_posted_at_backfill()
 
 
 async def main() -> None:
@@ -219,47 +262,35 @@ async def main() -> None:
             )
     logger.info("LLM provider: %s, model: %s", settings.llm_provider, settings.llm_model_name)
 
-    bot = None
+    bot_ref: list = []
     try:
-        await init_database()
-        try:
-            seeded = await seed_channels_from_file()
-        except Exception as exc:
-            logger.warning("Seed channels skipped: %s", exc)
-            seeded = 0
-        logger.info("Seed channels loaded: %d", seeded)
-
-        if settings.auto_build_webapp and settings.serve_mini_app:
-            ensure_webapp_built()
-
-        tasks: list = []
+        boot_ready = asyncio.Event()
+        tasks: list = [boot(boot_ready)]
 
         if settings.is_worker:
+            if settings.api_enabled:
+                tasks.append(run_api_server())
             tasks.extend(
                 [
-                    run_monitor(),
-                    run_llm_processor(),
-                    run_api_server(),
-                    run_posted_at_backfill(),
+                    _run_after_boot(boot_ready, run_monitor),
+                    _run_after_boot(boot_ready, run_llm_processor),
+                    _run_posted_at_after_boot(boot_ready),
                 ]
             )
 
         if settings.is_bot_polling:
-            bot = create_bot()
-            await _setup_webapp(bot)
-            tasks.append(run_bot(bot))
+            tasks.append(_run_bot_after_boot(boot_ready, bot_ref))
         elif settings.telegram_bot_token:
-            bot = create_bot()
-            await _setup_webapp(bot)
+            tasks.append(_setup_bot_only(boot_ready, bot_ref))
 
-        if not tasks:
+        if len(tasks) <= 1:
             raise SystemExit("Nothing to run — set LUMO_MODE to full, worker, or bot")
 
         await asyncio.gather(*tasks)
     finally:
         await LLMClient.close_http()
-        if bot is not None:
-            await close_bot()
+        if bot_ref:
+            await close_bot(bot_ref[0])
         if use_lock:
             release_instance_lock()
 
