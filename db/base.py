@@ -90,6 +90,7 @@ def _register_engine_events(db_engine) -> None:
 
 
 settings = get_settings()
+_pooler_configured = False
 
 if settings.database_url.startswith("postgresql"):
     from db.supabase_url import log_database_target
