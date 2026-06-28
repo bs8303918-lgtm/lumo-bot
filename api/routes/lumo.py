@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -103,13 +104,15 @@ async def _search_catalog(
     categories = extract_categories_from_text(query)
     search_types, extra_tags = resolve_catalog_filter(categories)
     repo = catalog_repo(session)
-    raw = await repo.get_active_for_user(
-        user.id,
-        search_types,
-        limit=80,
-        extra_tags=extra_tags,
+    raw, feedback_hints = await asyncio.gather(
+        repo.get_active_for_user(
+            user.id,
+            search_types,
+            limit=50,
+            extra_tags=extra_tags,
+        ),
+        load_match_feedback_hints(user.id, query),
     )
-    feedback_hints = await load_match_feedback_hints(user.id, query)
     items, matched_categories = match_opportunities_for_user(
         query,
         raw,
@@ -277,15 +280,28 @@ async def lumo_catalog_bootstrap(
     limit: int = Query(default=20, ge=1, le=50),
 ) -> dict:
     """Categories + first catalog page in one request (faster Mini App load)."""
-    repo = catalog_repo(session)
-    fresh = await repo.list_all_active_for_user(user.id, ALL_TYPES, max_rows=500)
-    counts: dict[str, int] = {}
-    for entry in fresh:
-        for tag in entry_all_tags(entry):
-            if tag != "другое":
-                counts[tag] = counts.get(tag, 0) + 1
+    from db.base import async_session_factory
+
+    fetch_cap = min(120, limit * 6 + 24)
+    user_id = user.id
+
+    async def load_counts() -> tuple[dict[str, int], int]:
+        async with async_session_factory() as s:
+            repo = catalog_repo(s)
+            counts, total = await asyncio.gather(
+                repo.count_active_by_type_for_user(user_id),
+                repo.count_active_for_user(user_id),
+            )
+            return counts, total
+
+    async def load_page() -> list:
+        async with async_session_factory() as s:
+            return await catalog_repo(s).list_all_active_for_user(
+                user_id, ALL_TYPES, max_rows=fetch_cap
+            )
+
+    (counts, total), fresh = await asyncio.gather(load_counts(), load_page())
     unique = dedupe_opportunities(fresh)
-    total = len(unique)
     categories = build_category_list(counts, total_entries=total)
     sorted_items = sort_opportunities_by_deadline(unique)
     page = sorted_items[:limit]
@@ -310,7 +326,7 @@ async def lumo_opportunities(
 ) -> dict:
     repo = catalog_repo(session)
     types = ALL_TYPES if not category or category == "all" else [category]
-    fetch_cap = min(max(limit + offset + limit, 60), 300)
+    fetch_cap = min(max(limit + offset + limit, 60), 150)
     items = await repo.get_active_for_user(user.id, types, limit=fetch_cap)
     unique = dedupe_opportunities(items)
 

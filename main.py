@@ -28,7 +28,8 @@ from utils.instance_lock import acquire_instance_lock, release_instance_lock
 logger = logging.getLogger(__name__)
 
 
-async def init_database() -> None:
+async def init_schema() -> None:
+    """Быстро: схема + миграции — не блокирует healthcheck."""
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -37,7 +38,7 @@ async def init_database() -> None:
         db_hint = settings.database_url.split("@")[-1] if "@" in settings.database_url else settings.database_url[:60]
         logger.error(
             "Database connection failed (%s). Check DATABASE_URL on Railway: "
-            "Supabase Transaction pooler :6543, user postgres.PROJECT_REF, redeploy after change. Host: %s",
+            "Supabase pooler, redeploy after change. Host: %s",
             type(exc).__name__,
             db_hint,
         )
@@ -48,6 +49,9 @@ async def init_database() -> None:
     await ensure_catalog_multi_per_message()
     await ensure_subscription_columns()
 
+
+async def run_startup_maintenance() -> None:
+    """Тяжёлая фоновая работа после старта API — backfill, чистка каталога."""
     async with async_session_factory() as session:
         from sqlalchemy import select
 
@@ -66,6 +70,7 @@ async def init_database() -> None:
         result = await session.execute(select(User).where(User.interest_query.is_not(None)))
         users = list(result.scalars().all())
         initialized = 0
+        floor = 0
         for user in users:
             if await state_repo.get_llm_min_raw_id(user.id) is not None:
                 continue
@@ -83,7 +88,7 @@ async def init_database() -> None:
         from services.opportunity_catalog import catalog_repo
 
         repo = catalog_repo(session)
-        archived = await repo.archive_stale_unclassified(limit=500)
+        archived = await repo.archive_stale_unclassified(limit=200)
         expired = await repo.deactivate_expired()
         stale = await repo.deactivate_stale_without_deadline()
         old = await repo.deactivate_old_posts()
@@ -93,7 +98,7 @@ async def init_database() -> None:
         if archived or expired or stale or old or invalid or reclassified or duplicates:
             await session.commit()
             logger.info(
-                "Catalog cleanup on startup: archived=%d expired=%d stale=%d old_posts=%d invalid=%d reclassified=%d duplicates=%d",
+                "Catalog cleanup: archived=%d expired=%d stale=%d old=%d invalid=%d reclassified=%d dup=%d",
                 archived,
                 expired,
                 stale,
@@ -102,6 +107,12 @@ async def init_database() -> None:
                 reclassified,
                 duplicates,
             )
+
+
+async def init_database() -> None:
+    """Полная инициализация (локально / однопроцессный режим)."""
+    await init_schema()
+    await run_startup_maintenance()
 
 
 async def run_bot(bot) -> None:
@@ -173,7 +184,11 @@ async def _run_after_boot(boot_ready: asyncio.Event, coro_fn):
 async def boot(boot_ready: asyncio.Event) -> None:
     settings = get_settings()
     try:
-        await init_database()
+        await init_schema()
+    finally:
+        boot_ready.set()
+        logger.info("Schema ready — API/workers unlocked")
+    try:
         try:
             seeded = await seed_channels_from_file()
         except Exception as exc:
@@ -183,9 +198,15 @@ async def boot(boot_ready: asyncio.Event) -> None:
 
         if settings.auto_build_webapp and settings.serve_mini_app:
             ensure_webapp_built()
-    finally:
-        boot_ready.set()
-        logger.info("Boot complete — workers unlocked")
+
+        if settings.is_api_only:
+            logger.info("API-only mode — skipping monitor/LLM maintenance")
+            return
+
+        await run_startup_maintenance()
+        logger.info("Startup maintenance complete")
+    except Exception as exc:
+        logger.warning("Startup maintenance failed: %s", exc)
 
 
 async def _setup_webapp(bot) -> None:
@@ -232,7 +253,12 @@ async def main() -> None:
     if use_lock:
         acquire_instance_lock()
 
-    logger.info("Starting Lumo (mode=%s, railway=%s)...", mode, settings.is_railway)
+    logger.info(
+        "Starting Lumo (mode=%s, railway=%s, api_only=%s)...",
+        mode,
+        settings.is_railway,
+        settings.is_api_only,
+    )
     if settings.is_railway and settings.is_bot_polling:
         logger.info("Telegram bot polling enabled on Railway")
     if settings.is_worker:
@@ -267,7 +293,7 @@ async def main() -> None:
         boot_ready = asyncio.Event()
         tasks: list = [boot(boot_ready)]
 
-        if settings.is_worker:
+        if settings.is_worker and not settings.is_api_only:
             if settings.api_enabled:
                 tasks.append(run_api_server())
             tasks.extend(
@@ -277,6 +303,8 @@ async def main() -> None:
                     _run_posted_at_after_boot(boot_ready),
                 ]
             )
+        elif settings.is_api_only and settings.api_enabled:
+            tasks.append(run_api_server())
 
         if settings.is_bot_polling:
             tasks.append(_run_bot_after_boot(boot_ready, bot_ref))

@@ -18,6 +18,22 @@ Railway          →  bot + API + monitor + LLM  (LUMO_MODE=full)
 Supabase/Railway →  PostgreSQL
 ```
 
+### Оптимизация: 2 сервера вместо 1 (рекомендуется при лагах)
+
+CPU у Lumo почти не загружен — упираетесь в **RAM (~1 GB)** и **латентность до БД**.
+
+| Сервис Railway | Variables | RAM |
+|----------------|-----------|-----|
+| **lumo-api** | `LUMO_MODE=api`, `API_ENABLED=true`, `SERVE_MINI_APP=false` | ~200–300 MB |
+| **lumo-worker** | `LUMO_MODE=worker`, `ENABLE_BOT_POLLING=true`, `API_ENABLED=false` | ~500–700 MB |
+
+Оба сервиса — **один репозиторий**, один `DATABASE_URL`, один `TELEGRAM_BOT_TOKEN`.
+
+**Важно:** Supabase и Railway должны быть в **одном регионе** (EU↔EU или US↔US).  
+Сейчас частый кейс: Railway **US West** + Supabase **ap-south-1 (India)** → +300–500 ms на каждый запрос к БД.
+
+> Multi-region replicas на Railway — только Pro. Для Lumo выгоднее **split api/worker**, не 2 одинаковых реплики.
+
 > **Не запускай** `main.py` или `bot_main.py` на ПК одновременно с Railway — один токен = один polling, будет конфликт.
 
 ---
@@ -99,7 +115,8 @@ SERVE_MINI_APP=false
 AUTO_BUILD_WEBAPP=false
 ```
 
-> Если `LUMO_MODE=worker` — на Railway код **сам переключит на full** (бот + API вместе).
+> `LUMO_MODE=worker` + `ENABLE_BOT_POLLING=true` — бот на worker-сервисе.  
+> `LUMO_MODE=api` — только REST для Mini App (второй сервис).
 
 Полный список — в **`deploy/railway.env.example`** (LLM, Vercel URLs, API).
 
@@ -191,3 +208,5 @@ python main.py
 | CORS в Mini App | `API_CORS_ORIGINS` = Vercel URL |
 | database error | `DATABASE_URL` = Postgres, не SQLite |
 | Lumo already running | Только один инстанс Railway (1 replica) |
+| Медленный API / p99 25s | Supabase в том же регионе что Railway; split `api` + `worker` |
+| RAM 900 MB+ | Split на 2 сервиса или upgrade plan |

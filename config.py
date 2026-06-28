@@ -118,19 +118,19 @@ class Settings(BaseSettings):
     community_telegram_handle: str = "Lumo Community"
     community_telegram_url: str = "https://t.me/+hA0CwgbStLI0MGRi"
 
-    # full = bot + API + monitor + LLM (Railway prod); worker = без polling; bot = только polling локально
+    # full = bot + API + monitor + LLM; api = только REST (Mini App); worker = monitor + LLM без polling
     lumo_mode: str = "full"
+    # На worker-сервисе включить бота: ENABLE_BOT_POLLING=true (второй Railway-сервис)
+    enable_bot_polling: bool = False
     skip_instance_lock: bool = False
     telethon_session_path: str = ""
 
     @model_validator(mode="after")
-    def railway_full_stack(self) -> "Settings":
-        """На Railway всегда full (бот + worker), если явно не bot."""
+    def railway_defaults(self) -> "Settings":
+        """Railway: skip file lock; не форсируем full — можно split api + worker."""
         import os
 
         on_railway = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_PROJECT_ID"))
-        if on_railway and self.lumo_mode.lower() == "worker":
-            object.__setattr__(self, "lumo_mode", "full")
         if on_railway and not self.skip_instance_lock:
             object.__setattr__(self, "skip_instance_lock", True)
         return self
@@ -142,12 +142,21 @@ class Settings(BaseSettings):
         return BASE_DIR / self.telethon_session_name
 
     @property
+    def is_api_only(self) -> bool:
+        return self.lumo_mode.lower() == "api"
+
+    @property
     def is_worker(self) -> bool:
         return self.lumo_mode.lower() in ("worker", "full")
 
     @property
     def is_bot_polling(self) -> bool:
-        return self.lumo_mode.lower() in ("bot", "full")
+        mode = self.lumo_mode.lower()
+        if mode == "api":
+            return False
+        if mode == "worker":
+            return self.enable_bot_polling
+        return mode in ("bot", "full")
 
     @property
     def is_railway(self) -> bool:

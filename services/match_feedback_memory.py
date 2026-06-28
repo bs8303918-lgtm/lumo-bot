@@ -15,7 +15,7 @@ from db.models import TrainingSample
 
 logger = logging.getLogger(__name__)
 
-_CACHE_TTL_SEC = 90.0
+_CACHE_TTL_SEC = 300.0
 _user_cache: dict[int, tuple[float, "FeedbackHints"]] = {}
 _optimistic: dict[int, dict[int, tuple[bool, str]]] = {}
 
@@ -134,7 +134,7 @@ async def load_match_feedback_hints(
     user_id: int | None,
     interest_query: str,
     *,
-    max_rows: int = 300,
+    max_rows: int = 120,
 ) -> FeedbackHints:
     if user_id is None:
         return FeedbackHints()
@@ -152,40 +152,56 @@ async def load_match_feedback_hints(
 
     try:
         async with async_session_factory() as session:
-            result = await session.execute(
+            user_result = await session.execute(
                 select(TrainingSample)
+                .where(TrainingSample.task == "match")
+                .where(TrainingSample.user_id == user_id)
+                .where(TrainingSample.catalog_id.isnot(None))
+                .order_by(TrainingSample.id.desc())
+                .limit(max_rows)
+            )
+            user_rows = list(user_result.scalars().all())
+
+            global_result = await session.execute(
+                select(TrainingSample.catalog_id, TrainingSample.output_json)
                 .where(TrainingSample.task == "match")
                 .where(TrainingSample.catalog_id.isnot(None))
                 .order_by(TrainingSample.id.desc())
                 .limit(max_rows)
             )
-            rows = list(result.scalars().all())
+            global_rows = list(global_result.all())
     except Exception as exc:
         logger.debug("load_match_feedback_hints failed: %s", exc)
         return hints
 
-    for row in rows:
+    for row in user_rows:
         if row.catalog_id is None:
             continue
         cid = int(row.catalog_id)
+        if cid in user_latest:
+            continue
         try:
             output = json.loads(row.output_json or "{}")
         except json.JSONDecodeError:
             continue
         relevant = bool(output.get("relevant"))
-        try:
-            inp = json.loads(row.input_json or "{}")
-        except json.JSONDecodeError:
-            inp = {}
-        row_query = str(inp.get("interest_query") or "")
-
-        if row.user_id == user_id:
-            if cid not in user_latest:
-                user_latest[cid] = relevant
-                if not relevant:
-                    negative_queries.append((cid, row_query))
-
+        user_latest[cid] = relevant
         if not relevant:
+            try:
+                inp = json.loads(row.input_json or "{}")
+            except json.JSONDecodeError:
+                inp = {}
+            negative_queries.append((cid, str(inp.get("interest_query") or "")))
+
+    for catalog_id, output_json in global_rows:
+        if catalog_id is None:
+            continue
+        try:
+            output = json.loads(output_json or "{}")
+        except json.JSONDecodeError:
+            continue
+        if not bool(output.get("relevant")):
+            cid = int(catalog_id)
             global_neg_counts[cid] = global_neg_counts.get(cid, 0) + 1
 
     hints.user_negative_ids = {cid for cid, ok in user_latest.items() if not ok}
