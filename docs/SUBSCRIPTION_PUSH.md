@@ -36,7 +36,7 @@ Worker: `subscription_reminders` — проверка **каждый час** (`
 
 ## Тексты
 
-Исходники: `bot/texts/subscription_push.py`
+Исходники: `bot/texts.py` (функции `get_trial_*`, `get_startify_trial_welcome`)
 
 ## События аналитики
 

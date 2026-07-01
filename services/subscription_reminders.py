@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from bot.keyboards import subscription_upsell_keyboard
 from bot.instance import get_notify_bot
-from bot.texts.subscription_push import (
+from bot.texts import (
     get_trial_expired_message,
     get_trial_remind_1d,
     get_trial_remind_3d,
