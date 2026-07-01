@@ -2,6 +2,14 @@
 
 Lumo (Railway, FastAPI + бот) ↔ Startify (Next.js + NestJS + Prisma + Postgres).
 
+**Полная документация:**
+
+| Документ | Содержание |
+|----------|------------|
+| [STARTIFY_STACK.md](./STARTIFY_STACK.md) | Стек Next/Nest/Prisma, env, тарифы |
+| [STARTIFY_INTEGRATION.md](./STARTIFY_INTEGRATION.md) | UTM → бот → countdown → Kaspi → доступ |
+| [STARTIFY_CLAUDE_DEPLOY_PROMPT.md](./STARTIFY_CLAUDE_DEPLOY_PROMPT.md) | Промпт для Claude в репо Startify |
+
 ## Сейчас (подготовка)
 
 | Параметр | Значение |

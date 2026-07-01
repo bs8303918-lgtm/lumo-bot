@@ -39,6 +39,28 @@ def webapp_open_inline() -> InlineKeyboardMarkup | None:
     )
 
 
+def subscription_upsell_keyboard() -> InlineKeyboardMarkup | None:
+    """Кнопка оплаты Startify + Mini App."""
+    settings = get_settings()
+    rows: list[list[InlineKeyboardButton]] = []
+    checkout = normalize_https_url(settings.startify_checkout_url.strip())
+    if checkout and is_valid_telegram_button_url(checkout):
+        rows.append([InlineKeyboardButton(text="💳 Выбрать тариф и оплатить", url=checkout)])
+    webapp = settings.telegram_webapp_base_url
+    if webapp:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="📱 Тарифы в Mini App",
+                    web_app=WebAppInfo(url=webapp),
+                )
+            ]
+        )
+    if not rows:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def community_join_inline() -> InlineKeyboardMarkup | None:
     url = normalize_https_url(get_settings().community_telegram_url)
     if not url or not is_valid_telegram_button_url(url):

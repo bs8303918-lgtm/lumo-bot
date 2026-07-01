@@ -168,6 +168,12 @@ async def run_llm_processor() -> None:
     await run_with_retry("llm_processor", cycle)
 
 
+async def run_subscription_reminders() -> None:
+    from services.subscription_reminders import run_subscription_reminders_forever
+
+    await run_subscription_reminders_forever()
+
+
 async def _on_monitor_critical(exc: Exception) -> None:
     from services.admin_notify import notify_admin
 
@@ -327,6 +333,7 @@ async def main() -> None:
                 [
                     _run_after_boot(boot_ready, run_monitor, name="monitor"),
                     _run_after_boot(boot_ready, run_llm_processor, name="llm"),
+                    _run_after_boot(boot_ready, run_subscription_reminders, name="subscription_reminders"),
                     _run_posted_at_after_boot(boot_ready),
                 ]
             )

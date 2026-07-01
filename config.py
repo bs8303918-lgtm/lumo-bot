@@ -86,6 +86,7 @@ class Settings(BaseSettings):
     telethon_request_delay_seconds: float = 2.0
     require_public_channels: bool = True
     ai_search_daily_limit: int = 3
+    subscription_reminder_interval_seconds: int = 3600
 
     # Partner B2B (AI Startify) — subscriptions_enforced=false пока бот бесплатный
     partner_api_key: str = ""

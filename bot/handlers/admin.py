@@ -33,6 +33,7 @@ from services.promo_campaign import (
 )
 from db.repositories.training import TrainingRepository
 from services.training_export import export_training_jsonl
+from services.subscription_stats import build_subscription_stats, format_subscription_stats_report
 
 router = Router()
 
@@ -78,6 +79,13 @@ async def cmd_health(message: Message, session: AsyncSession) -> None:
         f"Каналов в очереди: {channels_count}\n\n"
         f"Ошибки за 24ч:\n{error_lines}"
     )
+
+
+@router.message(Command("subs"), AdminFilter())
+async def cmd_subs(message: Message, session: AsyncSession) -> None:
+    """Счётчики подписок: trial, платные, Startify."""
+    stats = await build_subscription_stats(session)
+    await message.answer(format_subscription_stats_report(stats), parse_mode="HTML")
 
 
 @router.message(Command("stats"), AdminFilter())

@@ -1,5 +1,5 @@
 aiogram>=3.13,<4
-telethon>=1.36,<2
+telethon>=1.44,<2
 sqlalchemy[asyncio]>=2.0.36,<2.1
 alembic>=1.13,<2
 aiosqlite>=0.20,<1

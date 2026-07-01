@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import get_settings
 from db.repositories.admin_analytics import AdminAnalyticsRepository
 from db.repositories.users import SystemStateRepository
+from services.subscription_stats import build_subscription_stats
 
 
 def _format_ago_minutes(iso_value: str | None) -> str:
@@ -127,6 +128,8 @@ async def build_tracking_dashboard(session: AsyncSession) -> dict:
         for row in pending_submissions
     ]
 
+    sub_stats = await build_subscription_stats(session)
+
     return {
         "updatedAgo": _format_ago_minutes(last_monitor),
         "monitorSchedule": monitor_label,
@@ -148,4 +151,16 @@ async def build_tracking_dashboard(session: AsyncSession) -> dict:
         "unreadFeedback": unread_feedback,
         "submissions": submission_items,
         "pendingSubmissions": pending_submissions_count,
+        "subscriptions": {
+            "totalUsers": sub_stats["totalUsers"],
+            "startifyUsers": sub_stats["startifyUsers"],
+            "everPaidRetail": sub_stats["everPaidRetail"],
+            "activePaidRetail": sub_stats["activePaidRetail"],
+            "activeTrial": sub_stats["activeTrial"],
+            "expiredTrial": sub_stats["expiredTrial"],
+            "freemium": sub_stats["freemium"],
+            "byPlan": sub_stats["byPlan"],
+            "activeByPlan": sub_stats["activeByPlan"],
+            "revenueActiveKzt": sub_stats["revenueActiveKzt"],
+        },
     }

@@ -126,7 +126,18 @@ async def main() -> None:
     print(f"Сессия Telethon: {session_path}.session")
     if os.environ.get("RAILWAY_ENVIRONMENT"):
         print("Railway: если будет database is locked — см. инструкцию в конце или ниже.\n")
-    client = get_telethon_client()
+    try:
+        client = get_telethon_client()
+    except ValueError as exc:
+        if "too many values to unpack" in str(exc).lower():
+            print(
+                "\nБитая или устаревшая файловая сессия (разные версии Telethon).\n"
+                "  python scripts/reset_telethon_session.py\n"
+                "  pip install -r requirements.txt\n"
+                "  python scripts/telethon_login_qr.py\n"
+            )
+            return
+        raise
     await connect_client(client)
 
     if await client.is_user_authorized():

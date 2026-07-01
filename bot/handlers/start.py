@@ -6,7 +6,8 @@ from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.background import schedule_community_invite
-from bot.keyboards import community_join_inline, main_menu_keyboard, webapp_open_inline
+from bot.keyboards import community_join_inline, main_menu_keyboard, subscription_upsell_keyboard, webapp_open_inline
+from bot.texts.subscription_push import get_startify_trial_welcome
 from bot.webapp_setup import schedule_menu_sync
 from bot.texts import get_community_invite_text, get_help_text
 from bot.welcome import send_welcome
@@ -110,7 +111,13 @@ async def cmd_start(message: Message, session: AsyncSession) -> None:
     start_payload = None
     if message.text and " " in message.text.strip():
         start_payload = message.text.strip().split(maxsplit=1)[1]
-    await apply_start_payload(session, user, start_payload)
+    startify = await apply_start_payload(session, user, start_payload)
+    if startify.trial_granted:
+        await message.answer(
+            get_startify_trial_welcome(user.tariff_expires_at),
+            parse_mode="HTML",
+            reply_markup=subscription_upsell_keyboard() or main_menu_keyboard(),
+        )
     if created:
         await track(
             session,
