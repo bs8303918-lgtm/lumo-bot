@@ -8,9 +8,11 @@ from config import get_settings
 from db.base import Base, async_session_factory, configure_supabase_pooler, engine
 from db.migrations import (
     ensure_catalog_multi_per_message,
+    ensure_google_auth_columns,
     ensure_raw_message_columns,
     ensure_subscription_columns,
     ensure_user_columns,
+    ensure_web_auth_columns,
 )
 from llm.client import LLMClient
 from llm.processor import LLMProcessor
@@ -46,6 +48,8 @@ async def init_schema() -> None:
     await ensure_raw_message_columns()
     await ensure_catalog_multi_per_message()
     await ensure_subscription_columns()
+    await ensure_google_auth_columns()
+    await ensure_web_auth_columns()
 
 
 async def run_startup_maintenance() -> None:

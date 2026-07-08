@@ -155,7 +155,7 @@ async def get_me(
 ) -> dict:
     settings = get_settings()
     categories = parse_interest_categories(user.interest_categories_json)
-    is_admin = settings.is_admin(user.telegram_id)
+    is_admin = settings.user_is_admin(user.telegram_id, user.email)
     search = await ai_search_usage(session, user.id, telegram_id=user.telegram_id, user=user)
     catalog_count = await catalog_repo(session).count_active_for_user(user.id)
     return {

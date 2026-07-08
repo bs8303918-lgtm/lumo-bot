@@ -31,6 +31,10 @@ class User(Base):
     tariff_plan: Mapped[str] = mapped_column(String(32), default="freemium", server_default="freemium")
     tariff_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     kaspi_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -93,6 +93,9 @@ class Settings(BaseSettings):
     subscriptions_enforced: bool = False
     subscription_preview_enabled: bool = True
     startify_checkout_url: str = ""
+    # Lumo → Startify: POST новых конкурсов после мониторинга (см. docs/STARTIFY_CATALOG_WEBHOOK.md)
+    startify_catalog_webhook_url: str = ""
+    startify_catalog_push_enabled: bool = True
     kaspi_payment_phone: str = "+7 775 499 8313"
 
     # Training data (для будущего fine-tuning)
@@ -109,6 +112,9 @@ class Settings(BaseSettings):
     api_cors_origins: str = "http://localhost:5173,http://localhost:3000"
     api_access_token: str = ""
     api_allow_dev_auth: bool = False
+    google_oauth_client_id: str = ""
+    web_auth_secret: str = ""
+    web_admin_emails: str = ""
     api_enabled: bool = True
     auto_build_webapp: bool = True
     serve_mini_app: bool = True
@@ -181,6 +187,19 @@ class Settings(BaseSettings):
             if text and text.isdigit() and uid == int(text):
                 return True
         return False
+
+    def is_web_admin(self, email: str | None) -> bool:
+        if not email or not self.web_admin_emails.strip():
+            return False
+        normalized = email.strip().lower()
+        for part in self.web_admin_emails.replace(";", ",").split(","):
+            text = part.strip().lower()
+            if text and text == normalized:
+                return True
+        return False
+
+    def user_is_admin(self, telegram_id: int, email: str | None = None) -> bool:
+        return self.is_admin(telegram_id) or self.is_web_admin(email)
 
     @property
     def llm_configured(self) -> bool:

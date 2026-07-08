@@ -106,6 +106,15 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.telegram_id == telegram_id))
         return result.scalar_one_or_none()
 
+    async def get_by_google_sub(self, google_sub: str) -> User | None:
+        result = await self.session.execute(select(User).where(User.google_sub == google_sub))
+        return result.scalar_one_or_none()
+
+    async def get_by_email(self, email: str) -> User | None:
+        normalized = email.strip().lower()
+        result = await self.session.execute(select(User).where(func.lower(User.email) == normalized))
+        return result.scalar_one_or_none()
+
     async def get_by_id(self, user_id: int) -> User | None:
         result = await self.session.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
@@ -223,6 +232,57 @@ class UserRepository:
             if last_error is not None:
                 raise last_error
             raise RuntimeError(f"Could not resolve user telegram_id={telegram_id}")
+
+    async def get_or_create_google(
+        self,
+        google_sub: str,
+        telegram_id: int,
+        email: str | None = None,
+        display_name: str | None = None,
+    ) -> tuple[User, bool]:
+        user = await self.get_by_google_sub(google_sub)
+        if user:
+            changed = False
+            if email and user.email != email:
+                user.email = email
+                changed = True
+            if display_name and user.display_name != display_name:
+                user.display_name = display_name
+                changed = True
+            if changed:
+                await self.session.flush()
+            return user, False
+
+        user = User(
+            telegram_id=telegram_id,
+            google_sub=google_sub,
+            email=email,
+            display_name=display_name,
+            username=email.split("@")[0] if email and "@" in email else None,
+            notifications_enabled=True,
+        )
+        self.session.add(user)
+        await self.session.flush()
+        return user, True
+
+    async def create_web_user(
+        self,
+        email: str,
+        password_hash: str,
+        display_name: str,
+        telegram_id: int,
+    ) -> tuple[User, bool]:
+        user = User(
+            telegram_id=telegram_id,
+            email=email.strip().lower(),
+            display_name=display_name,
+            password_hash=password_hash,
+            username=email.split("@")[0],
+            notifications_enabled=True,
+        )
+        self.session.add(user)
+        await self.session.flush()
+        return user, True
 
     async def set_notifications_enabled(self, user_id: int, enabled: bool) -> None:
         user = await self.get_by_id(user_id)

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import admin, admin_tracking, catalog, grants, leads, lumo, partner, submissions, traction
+from api.routes import admin, admin_tracking, catalog, grants, leads, lumo, partner, submissions, traction, web_auth
 from config import BASE_DIR, get_settings
 from db.base import Base, async_session_factory, configure_supabase_pooler, engine
 from scripts.seed_catalog import seed_catalog_if_empty
@@ -23,10 +23,17 @@ async def _api_startup_maintenance() -> None:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-        from db.migrations import ensure_catalog_multi_per_message, ensure_subscription_columns
+        from db.migrations import (
+            ensure_catalog_multi_per_message,
+            ensure_google_auth_columns,
+            ensure_subscription_columns,
+            ensure_web_auth_columns,
+        )
 
         await ensure_catalog_multi_per_message()
         await ensure_subscription_columns()
+        await ensure_google_auth_columns()
+        await ensure_web_auth_columns()
 
         async with async_session_factory() as session:
             await seed_catalog_if_empty(session)
@@ -83,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(lumo.router, prefix="/api")
     app.include_router(submissions.router, prefix="/api")
     app.include_router(traction.router, prefix="/api")
+    app.include_router(web_auth.router, prefix="/api")
     app.include_router(partner.router, prefix="/api")
 
     @app.get("/api/health")

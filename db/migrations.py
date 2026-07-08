@@ -132,3 +132,42 @@ async def ensure_subscription_columns() -> None:
                 text("ALTER TABLE users ADD COLUMN IF NOT EXISTS tariff_expires_at TIMESTAMPTZ")
             )
             await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS kaspi_phone VARCHAR(32)"))
+
+
+async def ensure_google_auth_columns() -> None:
+    """Google Sign-In fields on users."""
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(users)"))
+            columns = {row[1] for row in result.fetchall()}
+            specs = [
+                ("google_sub", "TEXT"),
+                ("email", "TEXT"),
+                ("display_name", "TEXT"),
+            ]
+            for name, ddl in specs:
+                if name not in columns:
+                    await conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
+            await conn.execute(
+                text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
+            )
+        elif dialect == "postgresql":
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255)"))
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)"))
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)"))
+            await conn.execute(
+                text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
+            )
+
+
+async def ensure_web_auth_columns() -> None:
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(users)"))
+            columns = {row[1] for row in result.fetchall()}
+            if "password_hash" not in columns:
+                await conn.execute(text("ALTER TABLE users ADD COLUMN password_hash TEXT"))
+        elif dialect == "postgresql":
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)"))
