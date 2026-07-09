@@ -46,7 +46,21 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
         "магистр",
         "бакалавр",
     ),
-    "хакатон": ("хакатон", "hackathon", "hack ", "хак ", "datathon"),
+    "хакатон": (
+        "хакатон",
+        "hackathon",
+        "hack ",
+        "хак ",
+        "datathon",
+        "startup battle",
+        "стартап battle",
+        "стартап-батл",
+        "pitch battle",
+        "pitch day",
+        "demo day",
+        "launchzone",
+        "питчинг",
+    ),
     "грант": ("грант", "grant", "фонд", "foundation"),
     "стажировка": ("стажиров", "internship", "intern ", "trainee", "практик"),
     "олимпиада": (
@@ -98,16 +112,8 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
         "competition",
         "contest",
         "отбор",
-        "pitch",
-        "pitching",
         "challenge",
         "соревнован",
-        "стартап",
-        "startup",
-        "стартапер",
-        "питч",
-        "акселератор",
-        "incubator",
         "ивент",
     ),
     "мероприятие": (
@@ -352,7 +358,7 @@ def build_opportunity_tags(
     llm_tags: list[str] | None = None,
 ) -> list[str]:
     """One tag if only one category fits; 2–4 when the post clearly matches several."""
-    from services.opportunity_type import is_viewer_or_audience_event
+    from services.opportunity_type import is_startup_pitch_competition, is_viewer_or_audience_event
 
     blob = " ".join(filter(None, [source_text, title, description, requirements]))
     primary = _normalize_tag(primary_type or "другое")
@@ -400,6 +406,13 @@ def build_opportunity_tags(
             )
         ):
             tags.remove("конкурс")
+
+    if is_startup_pitch_competition(blob):
+        if "конкурс" in tags:
+            tags.remove("конкурс")
+        if "стартапы" in tags:
+            tags.remove("стартапы")
+            tags.insert(0, "стартапы")
 
     # Только primary реально совпал — один тег
     if len(tags) <= 1:

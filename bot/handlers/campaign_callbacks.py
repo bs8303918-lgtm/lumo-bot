@@ -7,6 +7,7 @@ from bot.callback_utils import safe_callback_answer
 from db.repositories.users import UserRepository
 from services.analytics import track
 from services.promo_campaign import load_campaign
+from services.url_utils import safe_button_url
 
 router = Router()
 
@@ -30,11 +31,15 @@ async def on_campaign_click(callback: CallbackQuery, session: AsyncSession) -> N
         return
 
     if action == "apply":
-        url = campaign.apply_url
+        url = safe_button_url(campaign.apply_url)
         event_type = CAMPAIGN_APPLY_CLICK
     else:
-        url = campaign.telegram_url or campaign.info_url
+        url = safe_button_url(campaign.telegram_url or campaign.info_url)
         event_type = CAMPAIGN_TELEGRAM_CLICK
+
+    if not url:
+        await safe_callback_answer(callback, "Ссылка недоступна", show_alert=True)
+        return
 
     await safe_callback_answer(callback, url=url)
 

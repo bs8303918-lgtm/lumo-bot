@@ -27,6 +27,7 @@ from services.interest_matcher import (
 from services.opportunity_catalog import catalog_repo
 from services.subscription import public_plans, subscription_status
 from bot.background import run_interest_side_effects
+from services.catalog_display import entry_has_cash_prize, sort_opportunities_by_newest
 from services.webapp_catalog import (
     SEARCH_SUGGESTIONS,
     build_category_list,
@@ -318,16 +319,31 @@ async def lumo_catalog_bootstrap(
 @router.get("/lumo/opportunities")
 async def lumo_opportunities(
     category: str | None = Query(default=None),
+    types: str | None = Query(default=None, description="Comma-separated opportunity types"),
     q: str | None = Query(default=None),
+    sort: str = Query(default="newest", pattern="^(newest|deadline)$"),
+    cash_prize: str = Query(default="any", pattern="^(any|yes|no)$"),
     limit: int = Query(default=20, ge=1, le=50),
+    page_size: int | None = Query(default=None, ge=1, le=50),
     offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
     repo = catalog_repo(session)
-    types = ALL_TYPES if not category or category == "all" else [category]
-    fetch_cap = min(max(limit + offset + limit, 60), 150)
-    items = await repo.get_active_for_user(user.id, types, limit=fetch_cap)
+    page_limit = page_size or limit
+
+    if types:
+        selected = [t.strip().lower() for t in types.split(",") if t.strip()]
+        types_filter = [t for t in selected if t in ALL_TYPES]
+        if not types_filter:
+            types_filter = ALL_TYPES
+    elif category and category != "all":
+        types_filter = [category]
+    else:
+        types_filter = ALL_TYPES
+
+    fetch_cap = min(max(page_limit + offset + page_limit, 60), 200)
+    items = await repo.get_active_for_user(user.id, types_filter, limit=fetch_cap)
     unique = dedupe_opportunities(items)
 
     if q:
@@ -341,15 +357,25 @@ async def lumo_opportunities(
             or any(needle in tag for tag in entry_all_tags(e))
         ]
 
-    sorted_items = sort_opportunities_by_deadline(unique)
+    if cash_prize == "yes":
+        unique = [e for e in unique if entry_has_cash_prize(e)]
+    elif cash_prize == "no":
+        unique = [e for e in unique if not entry_has_cash_prize(e)]
+
+    sorted_items = (
+        sort_opportunities_by_newest(unique)
+        if sort == "newest"
+        else sort_opportunities_by_deadline(unique)
+    )
     total = len(sorted_items)
-    page = sorted_items[offset : offset + limit]
+    page = sorted_items[offset : offset + page_limit]
     return {
         "items": [serialize_opportunity(e) for e in page],
         "total": total,
         "offset": offset,
-        "limit": limit,
-        "hasMore": offset + limit < total,
+        "limit": page_limit,
+        "hasMore": offset + page_limit < total,
+        "sort": sort,
     }
 
 

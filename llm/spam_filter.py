@@ -194,6 +194,50 @@ def is_likely_consulting_promo(text: str) -> tuple[bool, str | None]:
     return False, None
 
 
+def is_likely_product_feature_news(text: str) -> tuple[bool, str | None]:
+    """
+    Новости об обновлениях продуктов (WhatsApp, Meta и т.п.) — не возможность Lumo.
+    Пример: «Выбор ника на WhatsApp» — анонс функции, а не конкурс или набор.
+    """
+    if not text or len(text.strip()) < 20:
+        return False, None
+
+    lowered = text.lower()
+    has_whatsapp = any(
+        marker in lowered for marker in ("whatsapp", "ватсап", "whats app")
+    )
+    feature_markers = (
+        "выбор ника",
+        "ник на whatsapp",
+        "username",
+        "user name",
+        "псевдоним",
+        "имя пользователя",
+        "вместо номера телефона",
+        "номера телефона",
+        "запуск функц",
+        "новая функц",
+        "обновлени",
+        "feature update",
+        "новая возможность whatsapp",
+    )
+    if has_whatsapp and any(marker in lowered for marker in feature_markers):
+        if not _has_open_call_signal(lowered):
+            return True, "product_feature_news"
+
+    generic_product = (
+        "meta объяв",
+        "whatsapp теперь",
+        "новая функция whatsapp",
+        "функция whatsapp",
+    )
+    if any(marker in lowered for marker in generic_product):
+        if not _has_open_call_signal(lowered):
+            return True, "product_feature_news"
+
+    return False, None
+
+
 def is_likely_results_news(text: str) -> tuple[bool, str | None]:
     """News about winners/results lists — not an open call to apply."""
     if not text or len(text.strip()) < 20:
@@ -396,6 +440,10 @@ def is_invalid_opportunity_extraction(data, source_text: str) -> tuple[bool, str
     if is_consulting:
         return True, consulting_reason
 
+    is_product_news, product_reason = is_likely_product_feature_news(source_text)
+    if is_product_news:
+        return True, product_reason
+
     is_question, q_reason = is_likely_chat_question(source_text)
     if is_question:
         return True, q_reason
@@ -439,6 +487,10 @@ def is_likely_spam_or_ad(text: str) -> tuple[bool, str | None]:
     is_consulting, consulting_reason = is_likely_consulting_promo(text)
     if is_consulting:
         return True, consulting_reason
+
+    is_product_news, product_reason = is_likely_product_feature_news(text)
+    if is_product_news:
+        return True, product_reason
 
     is_rubric, rubric_reason = is_likely_interview_or_rubric(text)
     if is_rubric:

@@ -7,7 +7,7 @@ from aiogram.types import (
 )
 
 from config import get_settings
-from services.url_utils import is_valid_telegram_button_url, normalize_https_url
+from services.url_utils import safe_button_url, safe_webapp_url
 from services.interest_matcher import is_domain_category, is_standard_category, tag_display
 
 BTN_TRACK_CHANNEL = "🔍 Отслеживать канал"
@@ -18,35 +18,26 @@ BTN_HELP = "📖 Помощь"
 
 def webapp_open_inline() -> InlineKeyboardMarkup | None:
     """Fresh Mini App URL — use this if the blue Open button shows an old tunnel."""
-    url = get_settings().telegram_webapp_base_url
+    url = safe_webapp_url(get_settings().telegram_webapp_base_url)
     if not url:
         return None
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="📱 Open Mini App",
-                    web_app=WebAppInfo(url=url),
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="🔗 Открыть ссылку",
-                    url=url,
-                )
-            ],
-        ]
-    )
+    link = safe_button_url(url)
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text="📱 Open Mini App", web_app=WebAppInfo(url=url))]
+    ]
+    if link:
+        rows.append([InlineKeyboardButton(text="🔗 Открыть ссылку", url=link)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def subscription_upsell_keyboard() -> InlineKeyboardMarkup | None:
     """Кнопка оплаты Startify + Mini App."""
     settings = get_settings()
     rows: list[list[InlineKeyboardButton]] = []
-    checkout = normalize_https_url(settings.startify_checkout_url.strip())
-    if checkout and is_valid_telegram_button_url(checkout):
+    checkout = safe_button_url(settings.startify_checkout_url.strip())
+    if checkout:
         rows.append([InlineKeyboardButton(text="💳 Выбрать тариф и оплатить", url=checkout)])
-    webapp = settings.telegram_webapp_base_url
+    webapp = safe_webapp_url(settings.telegram_webapp_base_url)
     if webapp:
         rows.append(
             [
@@ -62,8 +53,8 @@ def subscription_upsell_keyboard() -> InlineKeyboardMarkup | None:
 
 
 def community_join_inline() -> InlineKeyboardMarkup | None:
-    url = normalize_https_url(get_settings().community_telegram_url)
-    if not url or not is_valid_telegram_button_url(url):
+    url = safe_button_url(get_settings().community_telegram_url)
+    if not url:
         return None
     return InlineKeyboardMarkup(
         inline_keyboard=[

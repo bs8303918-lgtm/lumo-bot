@@ -1,0 +1,59 @@
+import { motion } from 'framer-motion';
+
+import { TestimonialsColumn, type Testimonial } from '@/components/ui/testimonials-columns-1';
+
+const LUMO_TESTIMONIALS: Testimonial[] = [
+  {
+    text: 'Очень удобный и действительно полезный бот. Всё работает быстро и понятно, без лишней путаницы. Благодаря Lumo легко находить каналы и возможности для участия.',
+  },
+  {
+    text: 'Жоско.',
+    name: 'Alikhan',
+  },
+  {
+    text: 'Уже на 3 хакатона регнулся.',
+    name: 'Айдана',
+  },
+];
+
+const leftColumn = [LUMO_TESTIMONIALS[0], LUMO_TESTIMONIALS[1], LUMO_TESTIMONIALS[2]];
+const rightColumn = [LUMO_TESTIMONIALS[2], LUMO_TESTIMONIALS[0], LUMO_TESTIMONIALS[1]];
+
+export function TestimonialsSection() {
+  return (
+    <section id="testimonials" className="px-5 py-24 md:py-32 border-t border-zinc-900 relative">
+      <div className="container z-10 mx-auto max-w-6xl">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          viewport={{ once: true }}
+          className="flex flex-col items-center justify-center max-w-[540px] mx-auto"
+        >
+          <div className="flex justify-center">
+            <div className="border border-zinc-800 py-1 px-4 rounded-lg text-sm text-zinc-400">
+              Отзывы
+            </div>
+          </div>
+
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mt-5 text-center">
+            Что говорят пользователи
+          </h2>
+          <p className="text-center mt-5 text-zinc-400">
+            Реальные сообщения из Lumo chat — пока их немного, скоро будет больше.
+          </p>
+        </motion.div>
+
+        <div className="flex justify-center gap-6 mt-10 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] max-h-[520px] overflow-hidden">
+          <TestimonialsColumn testimonials={leftColumn} duration={18} variant="dark" />
+          <TestimonialsColumn
+            testimonials={rightColumn}
+            className="hidden sm:block"
+            duration={22}
+            variant="dark"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}

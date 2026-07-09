@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.filters import AdminFilter
 from bot.welcome import send_welcome
 from bot.webapp_setup import reset_menu_cache, setup_telegram_webapp, sync_user_menu_button
+from db.repositories.admin_analytics import AdminAnalyticsRepository
 from db.repositories.channels import ChannelRepository
 from db.repositories.opportunity_catalog import OpportunityCatalogRepository
 from db.repositories.users import EventRepository, MatchRepository, SystemStateRepository
@@ -14,6 +15,13 @@ from db.repositories.users import UserRepository
 from config import get_settings
 from llm.client import LLMClient
 from monitor.telethon_client import telethon_is_authorized
+from services.admin_active_users import (
+    contact_keyboard,
+    format_active_users_report,
+    format_user_activity_report,
+    parse_active_command_args,
+    parse_user_lookup,
+)
 from services.analytics import format_funnel_report
 from services.interest_stats import (
     build_interest_overview,
@@ -34,6 +42,11 @@ from services.promo_campaign import (
 from db.repositories.training import TrainingRepository
 from services.training_export import export_training_jsonl
 from services.subscription_stats import build_subscription_stats, format_subscription_stats_report
+from services.startify_catalog_push import (
+    is_push_configured,
+    push_all_active_catalog,
+    push_catalog_opportunity_by_id,
+)
 
 router = Router()
 
@@ -88,6 +101,60 @@ async def cmd_subs(message: Message, session: AsyncSession) -> None:
     await message.answer(format_subscription_stats_report(stats), parse_mode="HTML")
 
 
+@router.message(Command("active"), AdminFilter())
+async def cmd_active(message: Message, session: AsyncSession) -> None:
+    """Топ активных пользователей: промпты, давность старта, ссылки на @."""
+    days, limit = parse_active_command_args(message.text or "")
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    repo = AdminAnalyticsRepository(session)
+    rows = await repo.top_active_users(since=since, limit=limit)
+    total = sum(1 for row in rows if row["prompts"] > 0)
+    text = format_active_users_report(rows, days=days, total_active=total)
+    keyboard = contact_keyboard(rows)
+    chunks = _split_messages(text)
+    for i, chunk in enumerate(chunks):
+        await message.answer(
+            chunk,
+            parse_mode="HTML",
+            reply_markup=keyboard if i == len(chunks) - 1 else None,
+        )
+
+
+@router.message(Command("user"), AdminFilter())
+async def cmd_user_activity(message: Message, session: AsyncSession) -> None:
+    """Карточка одного пользователя: /user @name или /user 123456789."""
+    lookup = parse_user_lookup(message.text or "")
+    if not lookup:
+        await message.answer(
+            "Использование:\n"
+            "/user @username\n"
+            "/user 5559703828"
+        )
+        return
+
+    repo = AdminAnalyticsRepository(session)
+    user_repo = UserRepository(session)
+    if lookup.isdigit():
+        data = await repo.user_activity_detail(telegram_id=int(lookup))
+    else:
+        user = await user_repo.find_by_username(lookup)
+        if not user:
+            await message.answer(f"Пользователь @{lookup} не найден.")
+            return
+        data = await repo.user_activity_detail(user_id=user.id)
+
+    if not data:
+        await message.answer("Пользователь не найден.")
+        return
+
+    keyboard = contact_keyboard([data], max_buttons=1)
+    await message.answer(
+        format_user_activity_report(data),
+        parse_mode="HTML",
+        reply_markup=keyboard,
+    )
+
+
 @router.message(Command("stats"), AdminFilter())
 async def cmd_stats(message: Message, session: AsyncSession) -> None:
     user_repo = UserRepository(session)
@@ -127,7 +194,8 @@ async def cmd_stats(message: Message, session: AsyncSession) -> None:
         f"CTR «Подробнее»: {ctr_details}% ({details_clicks}/{sent_7d})\n"
         f"CTR «Подать заявку»: {ctr_apply}% ({apply_clicks}/{sent_7d})\n\n"
         f"Интересы: /interests\n"
-        f"Воронка: /funnel\n\n"
+        f"Воронка: /funnel\n"
+        f"Топ активных: /active\n\n"
         f"Топ-5 каналов по матчам (без seed):\n{top_text}"
     )
 
@@ -236,6 +304,37 @@ async def cmd_dedupe_catalog(message: Message, session: AsyncSession) -> None:
     removed = await repo.deactivate_duplicates()
     await session.commit()
     await message.answer(f"🧹 Дубликаты в каталоге: деактивировано {removed} записей.")
+
+
+@router.message(Command("push_startify"), AdminFilter())
+async def cmd_push_startify(message: Message) -> None:
+    """Отправить каталог в Startify (одну карточку или все активные)."""
+    if not is_push_configured():
+        await message.answer(
+            "Startify push не настроен.\n"
+            "Задай STARTIFY_CATALOG_WEBHOOK_URL и PARTNER_API_KEY на Railway.\n"
+            "Док: docs/STARTIFY_CATALOG_WEBHOOK.md"
+        )
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) > 1 and parts[1].strip().isdigit():
+        catalog_id = int(parts[1].strip())
+        ok = await push_catalog_opportunity_by_id(catalog_id)
+        if ok:
+            await message.answer(f"✅ Конкурс #{catalog_id} отправлен в Startify.")
+        else:
+            await message.answer(f"❌ Не удалось отправить #{catalog_id}. Смотри логи Railway.")
+        return
+
+    await message.answer("⏳ Отправляю все активные конкурсы в Startify…")
+    stats = await push_all_active_catalog()
+    await message.answer(
+        "📤 Startify catalog push\n\n"
+        f"Всего: {stats['total']}\n"
+        f"Успешно: {stats['pushed']}\n"
+        f"Ошибок: {stats['failed']}"
+    )
 
 
 @router.message(Command("sync_webapp"), AdminFilter())

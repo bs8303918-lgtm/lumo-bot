@@ -8,6 +8,7 @@ Lumo (Railway, FastAPI + бот) ↔ Startify (Next.js + NestJS + Prisma + Postg
 |----------|------------|
 | [STARTIFY_STACK.md](./STARTIFY_STACK.md) | Стек Next/Nest/Prisma, env, тарифы |
 | [STARTIFY_INTEGRATION.md](./STARTIFY_INTEGRATION.md) | UTM → бот → countdown → Kaspi → доступ |
+| [STARTIFY_CATALOG_WEBHOOK.md](./STARTIFY_CATALOG_WEBHOOK.md) | Push конкурсов Lumo → Startify |
 | [STARTIFY_CLAUDE_DEPLOY_PROMPT.md](./STARTIFY_CLAUDE_DEPLOY_PROMPT.md) | Промпт для Claude в репо Startify |
 
 ## Сейчас (подготовка)
@@ -24,7 +25,12 @@ Lumo (Railway, FastAPI + бот) ↔ Startify (Next.js + NestJS + Prisma + Postg
 
 ## Архитектура
 
-**Каталог на сайте Startify** — NestJS забирает JSON из Lumo (`GET /catalog/opportunities`) и пишет в Postgres через Prisma (без AI на их стороне).
+**Каталог на сайте Startify** — два способа:
+
+1. **Push (рекомендуется):** Lumo шлёт `POST` на `STARTIFY_CATALOG_WEBHOOK_URL` при каждом новом конкурсе.
+2. **Pull (fallback):** NestJS cron → `GET /catalog/opportunities` → Prisma.
+
+Подробно: [STARTIFY_CATALOG_WEBHOOK.md](./STARTIFY_CATALOG_WEBHOOK.md)
 
 **Доступ к боту** — после оплаты Kaspi NestJS вызывает `PUT .../subscription` с `telegramId` и тарифом.
 

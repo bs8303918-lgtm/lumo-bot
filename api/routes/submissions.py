@@ -12,6 +12,7 @@ from db.models import User
 from db.repositories.opportunity_catalog import OPPORTUNITY_TYPES
 from db.repositories.submissions import SubmissionRepository
 from services.admin_notify import notify_admin
+from services.startify_catalog_push import schedule_catalog_push
 from services.submission_service import (
     approve_submission,
     reject_submission,
@@ -142,6 +143,7 @@ async def admin_approve_submission(
             raise HTTPException(status_code=404, detail="Заявка не найдена") from exc
         raise HTTPException(status_code=409, detail="Заявка уже обработана") from exc
     await session.commit()
+    schedule_catalog_push([entry.id])
     return {"ok": True, "catalogId": entry.id, "title": entry.title}
 
 

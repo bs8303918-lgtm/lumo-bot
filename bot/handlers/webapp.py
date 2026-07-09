@@ -5,6 +5,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from bot.keyboards import main_menu_keyboard, webapp_open_inline
 from bot.webapp_setup import schedule_menu_sync
 from config import get_settings
+from services.url_utils import safe_button_url
 
 router = Router()
 
@@ -49,7 +50,13 @@ async def cmd_link(message: Message) -> None:
     if not url:
         await message.answer("URL не задан. Добавь PUBLIC_BASE_URL в .env и перезапусти бота.")
         return
-    plain = url.split("?", 1)[0]
+    plain = safe_button_url(url.split("?", 1)[0])
+    if not plain:
+        await message.answer(
+            "URL Mini App некорректен для Telegram.\n"
+            "Задай TELEGRAM_WEBAPP_URL (Vercel HTTPS), не Railway /app."
+        )
+        return
     await message.answer(
         "Если видишь <code>ser-penalties...</code> — это кэш Telegram.\n\n"
         "1. Закрой Mini App крестиком\n"

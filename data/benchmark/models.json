@@ -1,0 +1,28 @@
+[
+  {
+    "name": "gpt-4o",
+    "provider": "openai",
+    "model": "gpt-4o",
+    "base_url": "https://api.openai.com/v1",
+    "api_key_env": "BENCHMARK_OPENAI_API_KEY"
+  },
+  {
+    "name": "claude-sonnet",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "api_key_env": "BENCHMARK_ANTHROPIC_API_KEY"
+  },
+  {
+    "name": "llama-8b-groq",
+    "provider": "openai",
+    "model": "llama-3.1-8b-instant",
+    "base_url": "https://api.groq.com/openai/v1",
+    "api_key_env": "BENCHMARK_GROQ_API_KEY"
+  },
+  {
+    "name": "gemini-flash",
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "api_key_env": "BENCHMARK_GEMINI_API_KEY"
+  }
+]

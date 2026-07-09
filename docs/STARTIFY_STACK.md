@@ -25,7 +25,7 @@
 |---------|------|------|
 | **AI Startify** | Next.js 14+, NestJS, Prisma, PostgreSQL | Лендинг, checkout, Kaspi, webhooks оплаты, CRM подписок |
 | **Lumo** | Python 3.12, FastAPI, aiogram 3, Telethon, Railway, Supabase Postgres | Telegram-бот, мониторинг каналов, AI-каталог, **источник правды по доступу в боте** |
-| **Связь** | REST `Partner API v1` | Startify → Lumo: активация тарифа, атрибуция, синк каталога |
+| **Связь** | REST `Partner API v1` + **catalog webhook** | Startify → Lumo: тариф; Lumo → Startify: новые конкурсы |
 
 ---
 
@@ -70,6 +70,8 @@ PARTNER_API_KEY=<тот же секрет>
 SUBSCRIPTIONS_ENFORCED=false   # true после запуска оплаты
 SUBSCRIPTION_PREVIEW_ENABLED=true
 STARTIFY_CHECKOUT_URL=https://startify.example/kassa/lumo
+STARTIFY_CATALOG_WEBHOOK_URL=https://api.startify.example/api/webhooks/lumo/catalog
+STARTIFY_CATALOG_PUSH_ENABLED=true
 KASPI_PAYMENT_PHONE=+7 775 499 8313
 ```
 

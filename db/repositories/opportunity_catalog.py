@@ -12,6 +12,7 @@ from llm.spam_filter import (
     is_invalid_opportunity_extraction,
     is_likely_digest_or_roundup,
     is_likely_interview_or_rubric,
+    is_likely_product_feature_news,
     is_likely_spam_or_ad,
 )
 from services.catalog_dedup import catalog_dedupe_keys
@@ -681,6 +682,11 @@ class OpportunityCatalogRepository:
                 continue
             is_rubric, _ = is_likely_interview_or_rubric(source_text or "")
             if is_rubric:
+                entry.is_active = False
+                deactivated += 1
+                continue
+            is_product_news, _ = is_likely_product_feature_news(source_text or "")
+            if is_product_news:
                 entry.is_active = False
                 deactivated += 1
                 continue

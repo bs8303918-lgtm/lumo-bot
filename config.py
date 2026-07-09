@@ -231,10 +231,12 @@ class Settings(BaseSettings):
     @property
     def telegram_webapp_base_url(self) -> str:
         """HTTPS URL for Telegram WebApp buttons (no query string — BotFather domain match)."""
-        explicit = (self.telegram_webapp_url or "").strip().rstrip("/")
+        from services.url_utils import normalize_https_url
+
+        explicit = normalize_https_url((self.telegram_webapp_url or "").strip().rstrip("/"))
         if explicit:
             return explicit
-        base = (self.public_base_url or "").strip().rstrip("/")
+        base = normalize_https_url((self.public_base_url or "").strip().rstrip("/"))
         if not base:
             return ""
         if not base.endswith("/app"):

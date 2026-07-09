@@ -8,8 +8,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from analytics.event_types import AI_SEARCH, INTEREST_SET
-from db.models import Event, MonitoredChannel, RawMessage, User, UserChannel, UserFeedback
+from analytics.event_types import AI_SEARCH, CARD_SENT, INTEREST_SET
+from db.models import Event, MonitoredChannel, RawMessage, SentMatch, User, UserChannel, UserFeedback
 
 
 def _utc_day_start(dt: datetime | None = None) -> datetime:
@@ -211,3 +211,157 @@ class AdminAnalyticsRepository:
                 }
             )
         return items, unread_count
+
+    async def top_active_users(self, *, since: datetime, limit: int = 15) -> list[dict]:
+        """Users ranked by AI prompts in period + activity metadata."""
+        activity_sq = (
+            select(
+                Event.user_id.label("user_id"),
+                func.count().filter(Event.event_type == AI_SEARCH).label("prompts"),
+                func.count().filter(Event.event_type == INTEREST_SET).label("interest_sets"),
+                func.count().filter(Event.event_type == CARD_SENT).label("cards_period"),
+                func.count().label("events_total"),
+                func.max(Event.created_at).label("last_event_at"),
+            )
+            .where(Event.created_at >= since)
+            .where(Event.user_id.is_not(None))
+            .group_by(Event.user_id)
+            .subquery()
+        )
+        cards_sq = (
+            select(
+                SentMatch.user_id.label("user_id"),
+                func.count().label("cards_total"),
+            )
+            .group_by(SentMatch.user_id)
+            .subquery()
+        )
+        channels_sq = (
+            select(
+                UserChannel.user_id.label("user_id"),
+                func.count().label("channel_count"),
+            )
+            .group_by(UserChannel.user_id)
+            .subquery()
+        )
+
+        result = await self.session.execute(
+            select(
+                User,
+                activity_sq.c.prompts,
+                activity_sq.c.interest_sets,
+                activity_sq.c.cards_period,
+                activity_sq.c.events_total,
+                activity_sq.c.last_event_at,
+                cards_sq.c.cards_total,
+                channels_sq.c.channel_count,
+            )
+            .join(activity_sq, User.id == activity_sq.c.user_id)
+            .outerjoin(cards_sq, User.id == cards_sq.c.user_id)
+            .outerjoin(channels_sq, User.id == channels_sq.c.user_id)
+            .order_by(
+                activity_sq.c.prompts.desc(),
+                activity_sq.c.events_total.desc(),
+                activity_sq.c.last_event_at.desc(),
+            )
+            .limit(limit)
+        )
+
+        items: list[dict] = []
+        for row in result.all():
+            user: User = row[0]
+            last_at = row[5] or user.updated_at or user.created_at
+            if last_at and last_at.tzinfo is None:
+                last_at = last_at.replace(tzinfo=timezone.utc)
+            created = user.created_at
+            if created and created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            items.append(
+                {
+                    "userId": user.id,
+                    "username": user.username,
+                    "telegramId": user.telegram_id,
+                    "createdAt": created,
+                    "interestPreview": (user.interest_query or "")[:80],
+                    "prompts": int(row[1] or 0),
+                    "interestSets": int(row[2] or 0),
+                    "cardsPeriod": int(row[3] or 0),
+                    "eventsTotal": int(row[4] or 0),
+                    "lastActiveAt": last_at,
+                    "cardsTotal": int(row[6] or 0),
+                    "channelCount": int(row[7] or 0),
+                    "tariffPlan": user.tariff_plan,
+                    "partnerSource": user.partner_source,
+                }
+            )
+        return items
+
+    async def user_activity_detail(self, *, user_id: int | None = None, telegram_id: int | None = None) -> dict | None:
+        stmt = select(User)
+        if user_id is not None:
+            stmt = stmt.where(User.id == user_id)
+        elif telegram_id is not None:
+            stmt = stmt.where(User.telegram_id == telegram_id)
+        else:
+            return None
+        result = await self.session.execute(stmt)
+        user = result.scalar_one_or_none()
+        if not user:
+            return None
+
+        now = datetime.now(timezone.utc)
+        periods = {
+            "today": _utc_day_start(now),
+            "7d": now - timedelta(days=7),
+            "30d": now - timedelta(days=30),
+            "all": datetime(1970, 1, 1, tzinfo=timezone.utc),
+        }
+        stats: dict[str, dict[str, int]] = {}
+        for label, since in periods.items():
+            prompts = await self.session.execute(
+                select(func.count())
+                .select_from(Event)
+                .where(Event.user_id == user.id)
+                .where(Event.event_type == AI_SEARCH)
+                .where(Event.created_at >= since)
+            )
+            events = await self.session.execute(
+                select(func.count())
+                .select_from(Event)
+                .where(Event.user_id == user.id)
+                .where(Event.created_at >= since)
+            )
+            stats[label] = {
+                "prompts": int(prompts.scalar_one()),
+                "events": int(events.scalar_one()),
+            }
+
+        cards = await self.session.execute(
+            select(func.count()).select_from(SentMatch).where(SentMatch.user_id == user.id)
+        )
+        channels = await self.session.execute(
+            select(func.count()).select_from(UserChannel).where(UserChannel.user_id == user.id)
+        )
+        last_event = await self.session.execute(
+            select(func.max(Event.created_at)).where(Event.user_id == user.id)
+        )
+        last_at = last_event.scalar_one() or user.updated_at or user.created_at
+        if last_at and last_at.tzinfo is None:
+            last_at = last_at.replace(tzinfo=timezone.utc)
+        created = user.created_at
+        if created and created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+
+        return {
+            "userId": user.id,
+            "username": user.username,
+            "telegramId": user.telegram_id,
+            "createdAt": created,
+            "lastActiveAt": last_at,
+            "interestQuery": user.interest_query,
+            "channelCount": int(channels.scalar_one()),
+            "cardsTotal": int(cards.scalar_one()),
+            "tariffPlan": user.tariff_plan,
+            "partnerSource": user.partner_source,
+            "stats": stats,
+        }

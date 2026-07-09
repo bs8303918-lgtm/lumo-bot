@@ -65,6 +65,34 @@ _CLOSED_EVENT_PATTERNS = (
     re.compile(r"finalists", re.I),
 )
 
+_STARTUP_PITCH_MARKERS = (
+    "startup battle",
+    "стартап battle",
+    "стартап-батл",
+    "стартап батл",
+    "pitch battle",
+    "pitch day",
+    "demo day",
+    "launchzone",
+    "launch zone",
+    "питчинг",
+    "pitching",
+)
+
+_STARTUP_SIGNALS = (
+    "стартап",
+    "startup",
+    "стартапер",
+    "founder",
+    "фаундер",
+    "питч",
+    "pitch",
+    "акселератор",
+    "accelerator",
+    "инкубатор",
+    "incubator",
+)
+
 
 def _lower(text: str | None) -> str:
     return (text or "").lower()
@@ -89,8 +117,19 @@ def is_viewer_or_audience_event(text: str) -> bool:
     return False
 
 
+def is_startup_pitch_competition(text: str) -> bool:
+    """Startup pitch / battle / demo day — not a generic school contest."""
+    if not text or len(text.strip()) < 15:
+        return False
+    lowered = _lower(text)
+    has_startup = any(marker in lowered for marker in _STARTUP_SIGNALS)
+    has_pitch_event = any(marker in lowered for marker in _STARTUP_PITCH_MARKERS)
+    has_battle = bool(re.search(r"\bbattle\b", lowered)) and has_startup
+    return has_pitch_event or has_battle
+
+
 def refine_opportunity_type(source_text: str, llm_type: str | None, data: dict | None = None) -> str:
-    """Map misclassified competition posts to зритель when appropriate."""
+    """Map misclassified competition posts to зритель or хакатон when appropriate."""
     data = coerce_llm_dict(data) or {}
     base = (llm_type or data.get("type") or "другое").lower().strip()
     if base not in STANDARD_TYPES:
@@ -98,6 +137,9 @@ def refine_opportunity_type(source_text: str, llm_type: str | None, data: dict |
 
     if is_viewer_or_audience_event(source_text):
         return "зритель"
+
+    if is_startup_pitch_competition(source_text) and base in ("конкурс", "мероприятие", "другое"):
+        return "хакатон"
 
     return base
 

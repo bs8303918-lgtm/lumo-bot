@@ -9,6 +9,12 @@ from datetime import timezone
 from db.models import CatalogOpportunity
 from llm.deadline import parse_deadline
 from services.catalog_dedup import catalog_dedupe_keys
+from services.catalog_display import (
+    entry_has_cash_prize,
+    format_deadline_label,
+    is_entry_new,
+    sort_opportunities_by_newest,
+)
 from services.catalog_freshness import is_unknown_deadline, message_posted_at
 from services.interest_matcher import (
     CATEGORY_DISPLAY,
@@ -64,6 +70,11 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
     msg_link = pick_telegram_post_link(entry.message_link, entry.application_url)
     if not msg_link:
         msg_link = normalize_message_link(entry.message_link)
+    deadline_meta = format_deadline_label(entry.deadline, is_archived=not entry.is_active)
+    cash_prize = entry_has_cash_prize(entry)
+    classified = entry.classified_at
+    if classified is not None and classified.tzinfo is None:
+        classified = classified.replace(tzinfo=timezone.utc)
     return {
         "id": entry.id,
         "type": opp_type,
@@ -73,6 +84,12 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
         "title": entry.title,
         "description": entry.description,
         "deadline": entry.deadline,
+        "deadlineLabel": deadline_meta["label"],
+        "deadlineUrgent": deadline_meta["urgent"],
+        "hasCashPrize": cash_prize,
+        "cashPrizeLabel": "Денежный приз" if cash_prize else "Без денежного приза",
+        "isNew": is_entry_new(entry),
+        "classifiedAt": classified.isoformat() if classified else None,
         "sourceChannelName": clean_source_name(entry.source_channel_name),
         "requirements": entry.requirements,
         "applicationUrl": app_url,

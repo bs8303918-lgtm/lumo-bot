@@ -42,4 +42,8 @@ async def safe_callback_answer(
                 callback.from_user.id if callback.from_user else None,
             )
             return False
+        if "url_invalid" in str(exc).lower():
+            logger.warning("Invalid callback URL data=%s: %s", callback.data, exc)
+            await callback.answer("Ссылка недоступна", show_alert=True)
+            return False
         raise

@@ -8,6 +8,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 from config import get_settings
+from services.url_utils import safe_webapp_url
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ _synced_chat_ids: set[int] = set()
 
 
 def _menu_webapp_url() -> str:
-    return get_settings().telegram_webapp_base_url
+    return safe_webapp_url(get_settings().telegram_webapp_base_url)
 
 
 async def setup_telegram_webapp(bot: Bot, *, force: bool = False) -> None:
@@ -28,7 +29,8 @@ async def setup_telegram_webapp(bot: Bot, *, force: bool = False) -> None:
     url = _menu_webapp_url()
     if not url:
         logger.warning(
-            "Mini App URL not set — Open button disabled. Set TELEGRAM_WEBAPP_URL or PUBLIC_BASE_URL"
+            "Mini App URL not set or invalid — Open button disabled. "
+            "Set TELEGRAM_WEBAPP_URL to your Vercel HTTPS URL (not Railway /app)."
         )
         return
 

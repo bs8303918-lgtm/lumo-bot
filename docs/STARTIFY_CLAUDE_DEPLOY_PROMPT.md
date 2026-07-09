@@ -50,7 +50,12 @@ Endpoints:
 - GET  /users/{telegramId}
 - PUT  /users/{telegramId}/subscription  ← после оплаты Kaspi
 - POST /users/{telegramId}/attribution
-- GET  /catalog/opportunities?limit=50&offset=0
+- GET  /catalog/opportunities?limit=50&offset=0   ← pull sync (fallback)
+
+Lumo → Startify push (новые конкурсы после мониторинга):
+- POST {STARTIFY_CATALOG_WEBHOOK_URL}  event=opportunity.created
+- Auth: тот же Bearer LUMO_PARTNER_API_KEY
+- Полная спека + NestJS код: docs/STARTIFY_CATALOG_WEBHOOK.md
 
 PUT /users/{telegramId}/subscription body:
 {
@@ -93,7 +98,8 @@ PaymentStatus: pending | invoice_sent | paid | failed | expired | refunded
 ## NestJS modules
 
 1. lumo/lumo.module.ts + lumo.client.ts — typed client Partner API
-2. billing/billing.service.ts:
+2. catalog/catalog-webhook.controller.ts — POST /api/webhooks/lumo/catalog (см. STARTIFY_CATALOG_WEBHOOK.md)
+3. billing/billing.service.ts:
    - createCheckout(dto): validate plan, create PaymentOrder, call Kaspi API (stub interface IKaspiClient if keys missing)
    - handleKaspiWebhook(payload): idempotent, on success → lumoClient.activateSubscription()
 3. billing/billing.controller.ts:
