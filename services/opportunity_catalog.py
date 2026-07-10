@@ -27,7 +27,6 @@ from services.interest_profile import parse_format_preferences
 from services.message_freshness import is_raw_message_too_old_for_llm
 from services.match_digest import get_digest_buffer
 from services.notification_service import NotificationService, digest_cooldown_active
-from services.startify_catalog_push import schedule_catalog_push
 from services.training_collector import (
     record_classify,
     record_match,
@@ -167,6 +166,8 @@ class OpportunityCatalogService:
                     if entry.is_active:
                         new_ids.append(entry.id)
                 if active_ids:
+                    from services.startify_catalog_push import schedule_catalog_push
+
                     schedule_catalog_push(active_ids)
                 if any(e.is_active for e in created_entries):
                     logger.info(

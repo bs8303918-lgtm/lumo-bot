@@ -10,7 +10,7 @@ import httpx
 
 from config import get_settings
 from db.base import async_session_factory
-from services.opportunity_catalog import catalog_repo
+from db.repositories.opportunity_catalog import OpportunityCatalogRepository
 from services.webapp_catalog import dedupe_opportunities, serialize_opportunity, sort_opportunities_by_deadline
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 EVENT_CREATED = "opportunity.created"
 EVENT_UPDATED = "opportunity.updated"
 EVENT_DEACTIVATED = "opportunity.deactivated"
+
+
+def _catalog_repo(session) -> OpportunityCatalogRepository:
+    settings = get_settings()
+    return OpportunityCatalogRepository(
+        session,
+        no_deadline_max_age_days=settings.catalog_no_deadline_max_age_days,
+    )
 
 
 def is_push_configured() -> bool:
@@ -42,7 +50,7 @@ async def push_catalog_opportunity_by_id(catalog_id: int, *, event: str = EVENT_
         return False
 
     async with async_session_factory() as session:
-        entry = await catalog_repo(session).get_by_id(catalog_id)
+        entry = await _catalog_repo(session).get_by_id(catalog_id)
         if not entry:
             logger.warning("Startify push: catalog %s not found", catalog_id)
             return False
@@ -111,7 +119,7 @@ async def push_all_active_catalog(*, limit: int | None = None) -> dict[str, int]
         return {"pushed": 0, "failed": 0, "skipped": 0, "total": 0}
 
     async with async_session_factory() as session:
-        repo = catalog_repo(session)
+        repo = _catalog_repo(session)
         entries = sort_opportunities_by_deadline(dedupe_opportunities(await repo.list_all_public_active()))
     if limit is not None:
         entries = entries[:limit]
