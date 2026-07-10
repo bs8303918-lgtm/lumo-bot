@@ -5,6 +5,7 @@ import { TestimonialsColumn, type Testimonial } from '@/components/ui/testimonia
 const LUMO_TESTIMONIALS: Testimonial[] = [
   {
     text: 'Очень удобный и действительно полезный бот. Всё работает быстро и понятно, без лишней путаницы. Благодаря Lumo легко находить каналы и возможности для участия.',
+    name: 'Айдана',
   },
   {
     text: 'Жоско. Уже на 3 хакатона регнулся.',
