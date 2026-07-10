@@ -7,12 +7,8 @@ const LUMO_TESTIMONIALS: Testimonial[] = [
     text: 'Очень удобный и действительно полезный бот. Всё работает быстро и понятно, без лишней путаницы. Благодаря Lumo легко находить каналы и возможности для участия.',
   },
   {
-    text: 'Жоско.',
+    text: 'Жоско. Уже на 3 хакатона регнулся.',
     name: 'Alikhan',
-  },
-  {
-    text: 'Уже на 3 хакатона регнулся.',
-    name: 'Айдана',
   },
   {
     text: 'Довольно полезное для находок, не приходится искать через тт, соц. сети. Особенно для внеклассных активностей и по дедлайнам.',
@@ -29,14 +25,12 @@ const leftColumn = [
   LUMO_TESTIMONIALS[1],
   LUMO_TESTIMONIALS[2],
   LUMO_TESTIMONIALS[3],
-  LUMO_TESTIMONIALS[4],
 ];
 const rightColumn = [
-  LUMO_TESTIMONIALS[4],
+  LUMO_TESTIMONIALS[3],
   LUMO_TESTIMONIALS[0],
   LUMO_TESTIMONIALS[1],
   LUMO_TESTIMONIALS[2],
-  LUMO_TESTIMONIALS[3],
 ];
 
 export function TestimonialsSection() {
