@@ -14,10 +14,14 @@ const LUMO_TESTIMONIALS: Testimonial[] = [
     text: 'Уже на 3 хакатона регнулся.',
     name: 'Айдана',
   },
+  {
+    text: 'Довольно полезное для находок, не приходится искать через тт, соц. сети. Особенно для внеклассных активностей и по дедлайнам.',
+    name: 'Asılım',
+  },
 ];
 
-const leftColumn = [LUMO_TESTIMONIALS[0], LUMO_TESTIMONIALS[1], LUMO_TESTIMONIALS[2]];
-const rightColumn = [LUMO_TESTIMONIALS[2], LUMO_TESTIMONIALS[0], LUMO_TESTIMONIALS[1]];
+const leftColumn = [LUMO_TESTIMONIALS[0], LUMO_TESTIMONIALS[1], LUMO_TESTIMONIALS[2], LUMO_TESTIMONIALS[3]];
+const rightColumn = [LUMO_TESTIMONIALS[3], LUMO_TESTIMONIALS[0], LUMO_TESTIMONIALS[1], LUMO_TESTIMONIALS[2]];
 
 export function TestimonialsSection() {
   return (
@@ -40,7 +44,7 @@ export function TestimonialsSection() {
             Что говорят пользователи
           </h2>
           <p className="text-center mt-5 text-zinc-400">
-            Реальные сообщения из Lumo chat — пока их немного, скоро будет больше.
+            Реальные сообщения из Lumo chat.
           </p>
         </motion.div>
 
