@@ -57,15 +57,26 @@ def contact_keyboard(rows: list[dict], *, max_buttons: int = 8) -> InlineKeyboar
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+def format_when(dt: datetime | None, *, now: datetime | None = None) -> str:
+    ref = _aware(dt)
+    if ref is None:
+        return "—"
+    return f"{ref.strftime('%d.%m.%Y')} ({format_ago(ref, now=now)})"
+
+
 def format_active_users_report(
     rows: list[dict],
     *,
     days: int,
     total_active: int,
 ) -> str:
+    now = datetime.now(timezone.utc)
     lines = [
         f"🏆 <b>Топ активных</b> за {days} дн.",
-        f"С промптами (AI-поиск): <b>{total_active}</b>",
+        f"С AI-промптами в периоде: <b>{total_active}</b>",
+        "",
+        "<i>Промпт = AI-поиск (чат / Mini App).</i>",
+        "<i>всего — за всё время · за Nд — в периоде топа · сегодня — с 00:00 KZ</i>",
         "",
     ]
     if not rows:
@@ -74,15 +85,21 @@ def format_active_users_report(
 
     for i, row in enumerate(rows, start=1):
         contact = user_contact_html(row.get("username"), row["telegramId"])
-        started = format_ago(row.get("createdAt"))
-        last = format_ago(row.get("lastActiveAt"))
+        last = format_ago(row.get("lastActiveAt"), now=now)
+        last_prompt = format_ago(row.get("lastPromptAt"), now=now)
+        started = format_when(row.get("createdAt"), now=now)
         interest = (row.get("interestPreview") or "").strip()
         interest_line = f"\n   🎯 {interest}…" if interest else ""
         plan = row.get("tariffPlan") or "freemium"
+        prompts_all = row.get("promptsAll", row.get("prompts", 0))
+        prompts_period = row.get("promptsPeriod", row.get("prompts", 0))
+        prompts_today = row.get("promptsToday", 0)
         lines.append(
             f"{i}. {contact}\n"
-            f"   🤖 промптов: <b>{row['prompts']}</b> · событий: {row['eventsTotal']}\n"
-            f"   📅 старт: {started} · был: {last}\n"
+            f"   🤖 промпты: <b>всего {prompts_all}</b> · за {days}д: {prompts_period}"
+            f" · сегодня: {prompts_today}\n"
+            f"   🕐 последний промпт: {last_prompt} · был в боте: {last}\n"
+            f"   📅 начал: {started}\n"
             f"   📡 каналов: {row['channelCount']} · карточек: {row['cardsTotal']} · {plan}"
             f"{interest_line}"
         )
@@ -110,16 +127,17 @@ def format_user_activity_report(data: dict) -> str:
     return (
         f"👤 <b>Пользователь</b> {contact}\n"
         f"🆔 Telegram ID: <code>{data['telegramId']}</code>\n"
-        f"📅 Регистрация: {format_ago(data.get('createdAt'))}\n"
+        f"📅 Начал в боте: {format_when(data.get('createdAt'))}\n"
         f"🕐 Последняя активность: {format_ago(data.get('lastActiveAt'))}\n"
+        f"🤖 Последний промпт: {format_ago(data.get('lastPromptAt'))}\n"
         f"📡 Каналов: {data['channelCount']} · карточек всего: {data['cardsTotal']}\n"
         f"💳 Тариф: {data.get('tariffPlan') or 'freemium'}"
         f"{interest_block}\n\n"
         f"<b>Промпты (AI-поиск):</b>\n"
-        f"  сегодня: {today.get('prompts', 0)}\n"
+        f"  сегодня (KZ): {today.get('prompts', 0)}\n"
         f"  7 дн: {week.get('prompts', 0)}\n"
         f"  30 дн: {month.get('prompts', 0)}\n"
-        f"  всего: {all_time.get('prompts', 0)}\n\n"
+        f"  <b>всего за всё время: {all_time.get('prompts', 0)}</b>\n\n"
         f"<b>Все события:</b> сегодня {today.get('events', 0)} · "
         f"7д {week.get('events', 0)} · 30д {month.get('events', 0)} · "
         f"всего {all_time.get('events', 0)}"

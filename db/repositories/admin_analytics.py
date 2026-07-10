@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from analytics.event_types import AI_SEARCH, CARD_SENT, INTEREST_SET
 from db.models import Event, MonitoredChannel, RawMessage, SentMatch, User, UserChannel, UserFeedback
+from services.ai_search_limit import ai_search_day_start_utc
 
 
 def _utc_day_start(dt: datetime | None = None) -> datetime:
@@ -212,6 +213,40 @@ class AdminAnalyticsRepository:
             )
         return items, unread_count
 
+    async def prompt_breakdown_for_users(
+        self, user_ids: list[int], *, period_since: datetime
+    ) -> dict[int, dict]:
+        if not user_ids:
+            return {}
+        today_start = ai_search_day_start_utc()
+        result = await self.session.execute(
+            select(
+                Event.user_id,
+                func.count().filter(Event.event_type == AI_SEARCH).label("prompts_all"),
+                func.count()
+                .filter(Event.event_type == AI_SEARCH, Event.created_at >= period_since)
+                .label("prompts_period"),
+                func.count()
+                .filter(Event.event_type == AI_SEARCH, Event.created_at >= today_start)
+                .label("prompts_today"),
+                func.max(Event.created_at).filter(Event.event_type == AI_SEARCH).label("last_prompt_at"),
+            )
+            .where(Event.user_id.in_(user_ids))
+            .where(Event.event_type == AI_SEARCH)
+            .group_by(Event.user_id)
+        )
+        out: dict[int, dict] = {}
+        for uid, prompts_all, prompts_period, prompts_today, last_prompt_at in result.all():
+            if last_prompt_at and last_prompt_at.tzinfo is None:
+                last_prompt_at = last_prompt_at.replace(tzinfo=timezone.utc)
+            out[int(uid)] = {
+                "promptsAll": int(prompts_all or 0),
+                "promptsPeriod": int(prompts_period or 0),
+                "promptsToday": int(prompts_today or 0),
+                "lastPromptAt": last_prompt_at,
+            }
+        return out
+
     async def top_active_users(self, *, since: datetime, limit: int = 15) -> list[dict]:
         """Users ranked by AI prompts in period + activity metadata."""
         activity_sq = (
@@ -294,6 +329,18 @@ class AdminAnalyticsRepository:
                     "partnerSource": user.partner_source,
                 }
             )
+
+        if items:
+            breakdown = await self.prompt_breakdown_for_users(
+                [row["userId"] for row in items],
+                period_since=since,
+            )
+            for row in items:
+                extra = breakdown.get(row["userId"], {})
+                row["promptsAll"] = extra.get("promptsAll", row["prompts"])
+                row["promptsPeriod"] = extra.get("promptsPeriod", row["prompts"])
+                row["promptsToday"] = extra.get("promptsToday", 0)
+                row["lastPromptAt"] = extra.get("lastPromptAt")
         return items
 
     async def user_activity_detail(self, *, user_id: int | None = None, telegram_id: int | None = None) -> dict | None:
@@ -345,9 +392,17 @@ class AdminAnalyticsRepository:
         last_event = await self.session.execute(
             select(func.max(Event.created_at)).where(Event.user_id == user.id)
         )
+        last_prompt = await self.session.execute(
+            select(func.max(Event.created_at))
+            .where(Event.user_id == user.id)
+            .where(Event.event_type == AI_SEARCH)
+        )
         last_at = last_event.scalar_one() or user.updated_at or user.created_at
+        last_prompt_at = last_prompt.scalar_one()
         if last_at and last_at.tzinfo is None:
             last_at = last_at.replace(tzinfo=timezone.utc)
+        if last_prompt_at and last_prompt_at.tzinfo is None:
+            last_prompt_at = last_prompt_at.replace(tzinfo=timezone.utc)
         created = user.created_at
         if created and created.tzinfo is None:
             created = created.replace(tzinfo=timezone.utc)
@@ -358,6 +413,7 @@ class AdminAnalyticsRepository:
             "telegramId": user.telegram_id,
             "createdAt": created,
             "lastActiveAt": last_at,
+            "lastPromptAt": last_prompt_at,
             "interestQuery": user.interest_query,
             "channelCount": int(channels.scalar_one()),
             "cardsTotal": int(cards.scalar_one()),
