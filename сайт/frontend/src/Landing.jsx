@@ -175,7 +175,7 @@ function HeroSection() {
       <div className="relative max-w-3xl mx-auto text-center">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-          150+ студентов уже используют Lumo
+          250+ студентов уже используют Lumo
         </div>
 
         <h1 className="text-[clamp(2.25rem,5.5vw,4rem)] font-bold leading-[1.1] tracking-tight mb-6">
@@ -250,7 +250,7 @@ function SocialProofSection() {
     <section className="px-5 py-24 md:py-32 border-t border-zinc-900">
       <div className="max-w-4xl mx-auto text-center">
         <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
-          150+ студентов уже в Lumo
+          250+ студентов уже в Lumo
         </h2>
         <p className="text-zinc-400 text-lg mb-12">
           Школьники и студенты, которые больше не пропускают возможности.
@@ -409,7 +409,7 @@ function FinalCtaSection() {
           Хватит упускать шансы
         </h2>
         <p className="text-zinc-400 text-lg mb-10 leading-relaxed">
-          Присоединяйся к 150+ студентам, которые уже находят лучшие гранты и конкурсы первыми.
+          Присоединяйся к 250+ студентам, которые уже находят лучшие гранты и конкурсы первыми.
         </p>
         <Link
           to="/app?signup=1"
