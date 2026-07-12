@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 
 import { TestimonialsColumn, type Testimonial } from '@/components/ui/testimonials-columns-1';
+import { useLandingLanguage } from '@/i18n/LandingLanguageContext';
 
 const LUMO_TESTIMONIALS: Testimonial[] = [
   {
@@ -35,6 +36,8 @@ const rightColumn = [
 ];
 
 export function TestimonialsSection() {
+  const { t } = useLandingLanguage();
+
   return (
     <section id="testimonials" className="px-5 py-24 md:py-32 border-t border-zinc-900 relative">
       <div className="container z-10 mx-auto max-w-6xl">
@@ -47,16 +50,14 @@ export function TestimonialsSection() {
         >
           <div className="flex justify-center">
             <div className="border border-zinc-800 py-1 px-4 rounded-lg text-sm text-zinc-400">
-              Отзывы
+              {t.testimonials.badge}
             </div>
           </div>
 
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mt-5 text-center">
-            Что говорят пользователи
+            {t.testimonials.title}
           </h2>
-          <p className="text-center mt-5 text-zinc-400">
-            Реальные сообщения из Lumo chat.
-          </p>
+          <p className="text-center mt-5 text-zinc-400">{t.testimonials.subtitle}</p>
         </motion.div>
 
         <div className="flex justify-center gap-6 mt-10 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] max-h-[520px] overflow-hidden">
