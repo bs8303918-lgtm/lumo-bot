@@ -10,11 +10,16 @@ const DEFAULT_FORM = {
   telegram: '',
 };
 
-function ProfileCard({ item }) {
+function ProfileCard({ item, isOwn = false }) {
   const initials = (item.displayName || '?').slice(0, 2).toUpperCase();
 
   return (
-    <article className="rounded-2xl border border-border bg-card p-5 flex flex-col gap-4 shadow-sm">
+    <article
+      className={`rounded-2xl border bg-card p-5 flex flex-col gap-4 shadow-sm ${
+        isOwn ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border'
+      }`}
+    >
+      {isOwn && <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Твоя анкета</p>}
       <div className="flex items-start gap-3">
         <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
           {initials}
@@ -164,7 +169,8 @@ export default function TeamFinderView({ authed, onNeedsAuth, profile }) {
       setMyProfile(data.profile);
       setSaveResult(data);
       setShowForm(false);
-      loadProfiles();
+      await loadMyProfile();
+      await loadProfiles();
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -376,12 +382,13 @@ export default function TeamFinderView({ authed, onNeedsAuth, profile }) {
 
         {loading ? (
           <p className="text-muted-foreground text-center py-16">Загрузка…</p>
-        ) : items.length === 0 ? (
+        ) : !myProfile && items.length === 0 ? (
           <p className="text-muted-foreground text-center py-16">
             Пока никого нет — создай первую анкету
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {myProfile && <ProfileCard item={myProfile} isOwn />}
             {items.map((item) => (
               <ProfileCard key={item.id} item={item} />
             ))}

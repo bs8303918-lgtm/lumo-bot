@@ -140,5 +140,18 @@ export function openBotCommand(botUsername, command) {
 }
 
 export function haptic(type = 'light') {
-  getTelegram()?.HapticFeedback?.impactOccurred(type);
+  const tg = getTelegram();
+  const hapticApi = tg?.HapticFeedback;
+  if (!hapticApi) return;
+
+  try {
+    if (type === 'success' || type === 'error' || type === 'warning') {
+      hapticApi.notificationOccurred?.(type);
+      return;
+    }
+    const impact = ['light', 'medium', 'heavy', 'rigid', 'soft'].includes(type) ? type : 'light';
+    hapticApi.impactOccurred?.(impact);
+  } catch {
+    // Telegram WebApp may reject unsupported haptic styles on some clients.
+  }
 }

@@ -10,11 +10,19 @@ const DEFAULT_FORM = {
   telegram: '',
 };
 
-function ProfileCard({ item }) {
+function ProfileCard({ item, isOwn = false }) {
   const initials = (item.displayName || '?').slice(0, 2).toUpperCase();
 
   return (
-    <article className="lumo-card p-4 flex flex-col gap-3">
+    <article
+      className="lumo-card p-4 flex flex-col gap-3"
+      style={isOwn ? { borderColor: 'var(--lumo-accent)', boxShadow: '0 0 0 1px color-mix(in srgb, var(--lumo-accent) 35%, transparent)' } : undefined}
+    >
+      {isOwn && (
+        <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--lumo-accent)' }}>
+          Твоя анкета
+        </p>
+      )}
       <div className="flex items-start gap-3">
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -165,7 +173,8 @@ export default function TeamFinderView({ profile, onProfileRefresh }) {
       setSaveTags(data.profile);
       setShowForm(false);
       onProfileRefresh?.();
-      loadProfiles();
+      await loadMyProfile();
+      await loadProfiles();
       haptic('success');
     } catch (err) {
       setFormError(err.message);
@@ -314,12 +323,13 @@ export default function TeamFinderView({ profile, onProfileRefresh }) {
 
       {loading ? (
         <p className="text-center py-10 text-[13px]" style={{ color: 'var(--lumo-text-muted)' }}>Загрузка…</p>
-      ) : items.length === 0 ? (
+      ) : !myProfile && items.length === 0 ? (
         <p className="text-center py-10 text-[13px]" style={{ color: 'var(--lumo-text-muted)' }}>
           Пока пусто — создай анкету
         </p>
       ) : (
         <div className="space-y-3">
+          {myProfile && <ProfileCard item={myProfile} isOwn />}
           {items.map((item) => (
             <ProfileCard key={item.id} item={item} />
           ))}
