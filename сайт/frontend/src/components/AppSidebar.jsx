@@ -14,6 +14,8 @@ import {
 
   User,
 
+  Users,
+
 } from 'lucide-react';
 
 import { Link } from 'react-router-dom';
@@ -27,6 +29,8 @@ const NAV = [
   { id: 'chat', icon: MessageSquarePlus, label: 'Чат' },
 
   { id: 'catalog', icon: Compass, label: 'Каталог' },
+
+  { id: 'team', icon: Users, label: 'Команда' },
 
   { id: 'pricing', icon: DollarSign, label: 'Тарифы' },
 

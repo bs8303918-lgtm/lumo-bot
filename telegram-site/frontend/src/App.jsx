@@ -7,6 +7,7 @@ import DetailModal from './components/DetailModal';
 import LumoLogo from './components/LumoLogo';
 import ProfileView from './components/ProfileView';
 import PricingView from './components/PricingView';
+import TeamFinderView from './components/TeamFinderView';
 import { resolvePlans } from './utils/pricing';
 import { apiFetch, getTelegram, haptic, initTelegramApp } from './api';
 
@@ -14,6 +15,7 @@ function ViewTabs({ active, onChange, isAdmin }) {
   const tabs = [
     { id: 'ai', label: 'AI-поиск', prefix: '✦' },
     { id: 'catalog', label: 'Каталог', prefix: null },
+    { id: 'team', label: 'Команда', prefix: null },
     { id: 'pricing', label: 'Price', prefix: null },
     { id: 'profile', label: 'Профиль', prefix: '●' },
   ];
@@ -201,6 +203,9 @@ export default function App() {
           />
         )}
         {view === 'catalog' && <CatalogView onOpenItem={openItem} />}
+        {view === 'team' && (
+          <TeamFinderView profile={profile} onProfileRefresh={loadProfile} />
+        )}
         {view === 'pricing' && (
           <PricingView
             meta={meta}

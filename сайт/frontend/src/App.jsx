@@ -16,6 +16,7 @@ import DetailModal from './components/DetailModal.jsx';
 import OpportunityCard from './components/OpportunityCard.jsx';
 import CatalogFilters, { DEFAULT_CATALOG_FILTERS } from './components/CatalogFilters.jsx';
 import TractionView from './components/TractionView.jsx';
+import TeamFinderView from './components/TeamFinderView.jsx';
 import { buildCatalogQuery } from './constants/catalogFilters.js';
 import { LUMO_PRICING_PLANS, Pricing } from '@/components/ui/pricing';
 
@@ -328,6 +329,13 @@ export default function LumoApp() {
             <CatalogPanel
               onOpenItem={openItem}
               authed={authed}
+              onNeedsAuth={() => setAuthModal(true)}
+            />
+          )}
+          {view === 'team' && (
+            <TeamFinderView
+              authed={authed}
+              profile={profile}
               onNeedsAuth={() => setAuthModal(true)}
             />
           )}

@@ -171,3 +171,56 @@ async def ensure_web_auth_columns() -> None:
                 await conn.execute(text("ALTER TABLE users ADD COLUMN password_hash TEXT"))
         elif dialect == "postgresql":
             await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)"))
+
+
+async def ensure_team_profiles_table() -> None:
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS team_profiles (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                        mode VARCHAR(32) NOT NULL DEFAULT 'seeking_team',
+                        display_name VARCHAR(20) NOT NULL DEFAULT 'Участник',
+                        role VARCHAR(32) NOT NULL DEFAULT 'other',
+                        city VARCHAR(32) NOT NULL DEFAULT 'online',
+                        raw_prompt TEXT NOT NULL,
+                        skills_json TEXT NOT NULL DEFAULT '[]',
+                        telegram_contact VARCHAR(64),
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_role ON team_profiles (role)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_city ON team_profiles (city)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_active ON team_profiles (is_active)"))
+        elif dialect == "postgresql":
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS team_profiles (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                        mode VARCHAR(32) NOT NULL DEFAULT 'seeking_team',
+                        display_name VARCHAR(20) NOT NULL DEFAULT 'Участник',
+                        role VARCHAR(32) NOT NULL DEFAULT 'other',
+                        city VARCHAR(32) NOT NULL DEFAULT 'online',
+                        raw_prompt TEXT NOT NULL,
+                        skills_json TEXT NOT NULL DEFAULT '[]',
+                        telegram_contact VARCHAR(64),
+                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_role ON team_profiles (role)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_city ON team_profiles (city)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_active ON team_profiles (is_active)"))

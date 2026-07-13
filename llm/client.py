@@ -16,8 +16,10 @@ from llm.prompts import (
     CLASSIFICATION_PROMPT,
     INTEREST_CATEGORIES_PROMPT,
     RELEVANCE_PROMPT,
+    TEAM_PROFILE_PROMPT,
 )
 from logging_setup import log_error
+from services.team_catalog import skills_catalog_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -214,15 +216,29 @@ class LLMClient:
         prompt = CLASSIFICATION_PROMPT.format(message_text=message_text, today=format_today())
         return await self._json_prompt(prompt, max_tokens=1536)
 
-    async def extract_interest_categories(self, interest_query: str) -> tuple[list[str], str | None]:
+    async def extract_interest_categories(
+        self, interest_query: str
+    ) -> tuple[list[str], list[str], str | None]:
         prompt = INTEREST_CATEGORIES_PROMPT.format(interest_query=interest_query)
         data, raw = await self._json_prompt(prompt, max_tokens=256, user_profile=True)
         if not data:
-            return [], raw
+            return [], [], raw
         categories = data.get("categories") or []
+        domains = data.get("domains") or []
+        cats_out: list[str] = []
         if isinstance(categories, list):
-            return [str(c).lower().strip() for c in categories if c], raw
-        return [], raw
+            cats_out = [str(c).lower().strip() for c in categories if c]
+        domains_out: list[str] = []
+        if isinstance(domains, list):
+            domains_out = [str(d).lower().strip().replace(" ", "_") for d in domains if d]
+        return cats_out, domains_out, raw
+
+    async def extract_team_profile(self, team_prompt: str) -> tuple[dict | None, str | None]:
+        prompt = TEAM_PROFILE_PROMPT.format(
+            team_prompt=team_prompt,
+            skills_catalog=skills_catalog_for_prompt(),
+        )
+        return await self._json_prompt(prompt, max_tokens=384, user_profile=True)
 
     async def match_catalog_items(
         self,

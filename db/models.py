@@ -48,6 +48,9 @@ class User(Base):
     opportunity_submissions: Mapped[list["OpportunitySubmission"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    team_profile: Mapped["TeamProfile | None"] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class SeedChannel(Base):
@@ -338,6 +341,27 @@ class TrainingSample(Base):
     model_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     meta_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class TeamProfile(Base):
+    __tablename__ = "team_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    mode: Mapped[str] = mapped_column(String(32), default="seeking_team", server_default="seeking_team")
+    display_name: Mapped[str] = mapped_column(String(20), default="Участник", server_default="Участник")
+    role: Mapped[str] = mapped_column(String(32), default="other", server_default="other", index=True)
+    city: Mapped[str] = mapped_column(String(32), default="online", server_default="online", index=True)
+    raw_prompt: Mapped[str] = mapped_column(Text)
+    skills_json: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")
+    telegram_contact: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="team_profile")
 
 
 class ContactLead(Base):

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import admin, admin_tracking, catalog, grants, leads, lumo, partner, submissions, traction, web_auth
+from api.routes import admin, admin_tracking, catalog, grants, leads, lumo, partner, submissions, team_finder, traction, web_auth
 from config import BASE_DIR, get_settings
 from db.base import Base, async_session_factory, configure_supabase_pooler, engine
 from scripts.seed_catalog import seed_catalog_if_empty
@@ -27,6 +27,7 @@ async def _api_startup_maintenance() -> None:
             ensure_catalog_multi_per_message,
             ensure_google_auth_columns,
             ensure_subscription_columns,
+            ensure_team_profiles_table,
             ensure_web_auth_columns,
         )
 
@@ -34,6 +35,7 @@ async def _api_startup_maintenance() -> None:
         await ensure_subscription_columns()
         await ensure_google_auth_columns()
         await ensure_web_auth_columns()
+        await ensure_team_profiles_table()
 
         async with async_session_factory() as session:
             await seed_catalog_if_empty(session)
@@ -88,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix="/api")
     app.include_router(admin_tracking.router, prefix="/api")
     app.include_router(lumo.router, prefix="/api")
+    app.include_router(team_finder.router, prefix="/api")
     app.include_router(submissions.router, prefix="/api")
     app.include_router(traction.router, prefix="/api")
     app.include_router(web_auth.router, prefix="/api")
