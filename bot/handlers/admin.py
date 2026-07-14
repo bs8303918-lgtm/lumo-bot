@@ -42,6 +42,19 @@ from services.promo_campaign import (
 from db.repositories.training import TrainingRepository
 from services.training_export import export_training_jsonl
 from services.subscription_stats import build_subscription_stats, format_subscription_stats_report
+from services.subscription_grant import grant_plan, grant_trial
+from bot.texts import (
+    get_startify_trial_welcome,
+    get_trial_day2_message,
+    get_trial_expired_message,
+    get_trial_halftime_message,
+    get_trial_remind_1d,
+    get_trial_remind_3d,
+    get_trial_winback_14d,
+    get_trial_winback_3d,
+    get_trial_winback_7d,
+)
+from bot.keyboards import subscription_upsell_keyboard
 from services.startify_catalog_push import (
     is_push_configured,
     push_all_active_catalog,
@@ -99,6 +112,89 @@ async def cmd_subs(message: Message, session: AsyncSession) -> None:
     """Счётчики подписок: trial, платные, Startify."""
     stats = await build_subscription_stats(session)
     await message.answer(format_subscription_stats_report(stats), parse_mode="HTML")
+
+
+def _parse_telegram_id_arg(text: str) -> int | None:
+    parts = (text or "").strip().split()
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[1].strip().lstrip("@"))
+    except ValueError:
+        return None
+
+
+@router.message(Command("grant_trial"), AdminFilter())
+async def cmd_grant_trial(message: Message, session: AsyncSession) -> None:
+    """Выдать 7 дней trial: /grant_trial TELEGRAM_ID"""
+    tid = _parse_telegram_id_arg(message.text or "")
+    if tid is None:
+        await message.answer("Использование: <code>/grant_trial 5559703828</code>", parse_mode="HTML")
+        return
+    repo = UserRepository(session)
+    user = await repo.get_by_telegram_id(tid)
+    if not user:
+        user, _ = await repo.get_or_create(tid, None)
+    user = await grant_trial(session, user)
+    await session.commit()
+    await message.answer(
+        f"✅ Trial 7д выдан: <code>{tid}</code>\n"
+        f"До: {user.tariff_expires_at}\n"
+        "Push-цепочка сброшена — напоминания пойдут заново.",
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("grant_plan"), AdminFilter())
+async def cmd_grant_plan(message: Message, session: AsyncSession) -> None:
+    """Выдать тариф: /grant_plan TELEGRAM_ID plan_3m"""
+    parts = (message.text or "").strip().split()
+    if len(parts) < 3:
+        await message.answer(
+            "Использование: <code>/grant_plan 5559703828 plan_3m</code>\n"
+            "Планы: plan_1m, plan_3m, plan_6m, plan_12m, unlimited",
+            parse_mode="HTML",
+        )
+        return
+    try:
+        tid = int(parts[1])
+    except ValueError:
+        await message.answer("Неверный telegram id")
+        return
+    plan_id = parts[2].lower()
+    repo = UserRepository(session)
+    user = await repo.get_by_telegram_id(tid)
+    if not user:
+        user, _ = await repo.get_or_create(tid, None)
+    user = await grant_plan(session, user, plan_id)
+    await session.commit()
+    await message.answer(
+        f"✅ Тариф <b>{user.tariff_plan}</b> для <code>{tid}</code>\n"
+        f"До: {user.tariff_expires_at or 'навсегда'}",
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("preview_sub_push"), AdminFilter())
+async def cmd_preview_sub_push(message: Message) -> None:
+    """Превью всех push-текстов подписки."""
+    from datetime import datetime, timedelta, timezone
+
+    exp = datetime.now(timezone.utc) + timedelta(days=3)
+    samples = [
+        ("welcome", get_startify_trial_welcome(exp)),
+        ("day2", get_trial_day2_message(exp)),
+        ("halftime", get_trial_halftime_message(exp)),
+        ("3d", get_trial_remind_3d(exp)),
+        ("1d", get_trial_remind_1d(exp)),
+        ("expired", get_trial_expired_message()),
+        ("winback_3d", get_trial_winback_3d()),
+        ("winback_7d", get_trial_winback_7d()),
+        ("winback_14d", get_trial_winback_14d()),
+    ]
+    kb = subscription_upsell_keyboard()
+    for label, text in samples:
+        await message.answer(f"📨 <b>{label}</b>\n\n{text}", parse_mode="HTML", reply_markup=kb)
 
 
 @router.message(Command("active"), AdminFilter())

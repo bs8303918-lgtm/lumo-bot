@@ -30,25 +30,27 @@ def webapp_open_inline() -> InlineKeyboardMarkup | None:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def subscription_upsell_keyboard() -> InlineKeyboardMarkup | None:
-    """Кнопка оплаты Startify + Mini App."""
+def subscription_upsell_keyboard() -> InlineKeyboardMarkup:
+    """@taton4i + Mini App Price; Startify checkout если задан."""
     settings = get_settings()
     rows: list[list[InlineKeyboardButton]] = []
+    username = settings.support_telegram_username.strip().lstrip("@") or "taton4i"
+    rows.append(
+        [InlineKeyboardButton(text="💬 Написать @taton4i", url=f"https://t.me/{username}")]
+    )
     checkout = safe_button_url(settings.startify_checkout_url.strip())
     if checkout:
-        rows.append([InlineKeyboardButton(text="💳 Выбрать тариф и оплатить", url=checkout)])
+        rows.append([InlineKeyboardButton(text="💳 Оплатить на сайте", url=checkout)])
     webapp = safe_webapp_url(settings.telegram_webapp_base_url)
     if webapp:
         rows.append(
             [
                 InlineKeyboardButton(
-                    text="📱 Тарифы в Mini App",
+                    text="📱 Тарифы Price",
                     web_app=WebAppInfo(url=webapp),
                 )
             ]
         )
-    if not rows:
-        return None
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

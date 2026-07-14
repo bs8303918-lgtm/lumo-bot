@@ -11,9 +11,12 @@ from sqlalchemy import select
 from bot.keyboards import subscription_upsell_keyboard
 from bot.instance import get_notify_bot
 from bot.texts import (
+    get_trial_day2_message,
     get_trial_expired_message,
+    get_trial_halftime_message,
     get_trial_remind_1d,
     get_trial_remind_3d,
+    get_trial_winback_14d,
     get_trial_winback_3d,
     get_trial_winback_7d,
 )
@@ -31,11 +34,14 @@ logger = logging.getLogger(__name__)
 
 REMINDER_SPECS: tuple[tuple[str, timedelta, timedelta, str], ...] = (
     # expires + low <= now <= expires + high
+    ("trial_day2", timedelta(days=-5, hours=-12), timedelta(days=-4, hours=-12), "subscription_trial_day2"),
+    ("trial_halftime", timedelta(days=-3, hours=-18), timedelta(days=-3, hours=-6), "subscription_trial_halftime"),
     ("remind_3d", timedelta(days=-3, hours=-12), timedelta(days=-2, hours=-12), "subscription_remind_3d"),
     ("remind_1d", timedelta(hours=-36), timedelta(hours=-12), "subscription_remind_1d"),
     ("expired", timedelta(hours=0), timedelta(hours=6), "subscription_trial_expired"),
     ("winback_3d", timedelta(days=2, hours=12), timedelta(days=3, hours=12), "subscription_winback_3d"),
     ("winback_7d", timedelta(days=6, hours=12), timedelta(days=7, hours=12), "subscription_winback_7d"),
+    ("winback_14d", timedelta(days=13, hours=12), timedelta(days=14, hours=12), "subscription_winback_14d"),
 )
 
 
@@ -53,6 +59,10 @@ def _expires_aware(user: User) -> datetime | None:
 
 
 def _message_for_kind(kind: str, expires_at: datetime | None) -> str:
+    if kind == "trial_day2":
+        return get_trial_day2_message(expires_at)
+    if kind == "trial_halftime":
+        return get_trial_halftime_message(expires_at)
     if kind == "remind_3d":
         return get_trial_remind_3d(expires_at)
     if kind == "remind_1d":
@@ -63,6 +73,8 @@ def _message_for_kind(kind: str, expires_at: datetime | None) -> str:
         return get_trial_winback_3d()
     if kind == "winback_7d":
         return get_trial_winback_7d()
+    if kind == "winback_14d":
+        return get_trial_winback_14d()
     return ""
 
 
@@ -80,7 +92,7 @@ async def _should_send(user: User, kind: str, now: datetime, state_repo: SystemS
     plan = (user.tariff_plan or "").lower()
     expires = _expires_aware(user)
 
-    if kind in ("remind_3d", "remind_1d"):
+    if kind in ("trial_day2", "trial_halftime", "remind_3d", "remind_1d"):
         if plan != PLAN_TRIAL_7D or expires is None:
             return False
         if not is_paid_plan_active(user, now=now):
@@ -102,7 +114,7 @@ async def _should_send(user: User, kind: str, now: datetime, state_repo: SystemS
                 return _in_window(now, expires, low, high)
         return False
 
-    if kind in ("winback_3d", "winback_7d"):
+    if kind in ("winback_3d", "winback_7d", "winback_14d"):
         if expires is None:
             return False
         if is_paid_plan_active(user, now=now):

@@ -45,10 +45,11 @@ def get_help_text() -> str:
 
 SET_INTEREST_PROMPT = (
     "🎯 Напиши одним сообщением — как в чате с ассистентом:\n"
-    "• кто ты\n"
-    "• что ищешь — конкурсы, гранты, стипендии, хакатоны…\n\n"
-    "<i>Пример: Студент IT, ищу хакатоны и стажировки в AI.</i>\n\n"
-    "Сразу подберу подходящее из базы ⚡"
+    "• кто ты (класс, специальность, чем занимаешься)\n"
+    "• что ищешь — олимпиады, гранты, стипендии, хакатоны, стажировки…\n\n"
+    "<i>Пример: Школьница 10 класс, люблю биологию — ищу олимпиады и стипендии.</i>\n"
+    "<i>Пример: Студент IT — хакатоны и стажировки в AI.</i>\n\n"
+    "Чем точнее специальность — тем релевантнее подборка ⚡"
 )
 
 SET_INTEREST_TOO_SHORT = (
@@ -75,7 +76,7 @@ def get_seed_channels_list() -> str:
 
 
 def get_searching_instant() -> str:
-    return "🔍 Ищу подходящие возможности в базе..."
+    return "🔍 Анализирую профиль и ищу подходящие возможности..."
 
 
 def get_searching_message(catalog_count: int, posts_count: int, channels_count: int) -> str:
@@ -322,86 +323,137 @@ def _subscription_price_lines() -> str:
 
 def _subscription_checkout_hint() -> str:
     settings = get_settings()
-    checkout = settings.startify_checkout_url.strip()
+    contact = settings.support_contact
     phone = settings.kaspi_payment_phone.strip() or "+7 775 499 8313"
+    checkout = settings.startify_checkout_url.strip()
+    lines = [
+        f"💬 Напиши <b>{contact}</b> — подключим тариф и консультацию.",
+        f"🎁 <b>Для своих:</b> ментор поможет с подачей на конкурсы и гранты.",
+        f"💳 Kaspi: <code>{phone}</code>",
+    ]
     if checkout:
-        return f"Оплата через Kaspi на сайте AI Startify или по номеру {phone}."
-    return f"Оплата через Kaspi: {phone}."
+        lines.append("Или оплата на сайте AI Startify — кнопка ниже.")
+    return "\n".join(lines)
+
+
+def _subscription_hero_offer() -> str:
+    return (
+        "🔥 <b>3 месяца — 4 990 ₸</b>\n"
+        "⭐ <b>6 месяцев — 7 990 ₸</b> (тариф «Старт»)\n"
+        "💎 <b>12 месяцев — 11 880 ₸</b> (990 ₸/мес)\n"
+        "🏆 <b>Безлимит — 49 000 ₸</b> навсегда"
+    )
 
 
 def get_startify_trial_welcome(expires_at) -> str:
     return (
-        "🎉 <b>Добро пожаловать в Lumo от AI Startify!</b>\n\n"
-        "Вам подключён <b>пробный доступ на 7 дней</b>:\n"
-        "• без лимита AI-поиска\n"
-        "• ежедневные подборки грантов и стажировок\n"
+        "🎉 <b>7 дней полного доступа — старт!</b>\n\n"
+        "Как streak в Duolingo: каждый день Lumo ищет гранты и стажировки под тебя.\n\n"
+        "Сейчас у тебя:\n"
+        "• AI-поиск <b>без лимита</b>\n"
+        "• умные подборки в бот\n"
         "• до 5 каналов в мониторинге\n\n"
-        f"⏳ Активен до: <b>{_format_subscription_expires(expires_at)}</b>\n\n"
-        "Следующий шаг — задай профиль:\n"
-        "👉 /set_interest"
+        f"⏳ До: <b>{_format_subscription_expires(expires_at)}</b>\n\n"
+        "👉 Сначала задай профиль: /set_interest\n\n"
+        f"{_subscription_checkout_hint()}"
+    )
+
+
+def get_trial_day2_message(expires_at) -> str:
+    return (
+        "🔥 <b>День 2 trial — не сбивай streak!</b>\n\n"
+        "Вчера ты включил Lumo на полную. Сегодня проверь:\n"
+        "• есть ли новые гранты в каталоге\n"
+        "• обновлён ли профиль /set_interest\n\n"
+        f"Полный доступ ещё до <b>{_format_subscription_expires(expires_at)}</b>.\n\n"
+        "Потом снова будет 3 AI-запроса в день — успей настроить под себя 💪"
+    )
+
+
+def get_trial_halftime_message(expires_at) -> str:
+    return (
+        "⚡ <b>Половина trial позади</b>\n\n"
+        "Duolingo напоминает не бросать streak — мы напоминаем не пропустить дедлайны.\n\n"
+        "Пока AI без лимита — прогони пару запросов в Mini App и добавь каналы /add_channel.\n\n"
+        f"Осталось до <b>{_format_subscription_expires(expires_at)}</b>.\n\n"
+        f"{_subscription_hero_offer()}\n\n"
+        f"{_subscription_checkout_hint()}"
     )
 
 
 def get_trial_remind_3d(expires_at) -> str:
     return (
-        "🔥 <b>Осталось 3 дня пробного Lumo</b>\n\n"
-        "Ты уже видишь подборки без лимита AI — не потеряй ритм, как в Duolingo streak 😉\n\n"
-        "После trial снова будет 3 AI-запроса в день.\n\n"
-        "<b>Безлимит навсегда</b> — 49 000 ₸ (разовая оплата).\n"
-        "Или подписка от 990 ₸/мес:\n"
-        f"{_subscription_price_lines()}\n\n"
-        f"{_subscription_checkout_hint()}\n\n"
-        "👇 Выбери тариф — кнопка ниже"
+        "⏳ <b>3 дня — и trial закончится</b>\n\n"
+        "Ты привык к AI без лимита. Без подписки снова будет <b>3 запроса в день</b>.\n\n"
+        "Не потеряй ритм — зафиксируй доступ сейчас:\n\n"
+        f"{_subscription_hero_offer()}\n\n"
+        f"{_subscription_checkout_hint()}"
     )
 
 
 def get_trial_remind_1d(expires_at) -> str:
     return (
-        "⏰ <b>Завтра заканчивается пробный Lumo</b>\n\n"
-        f"Доступ до: <b>{_format_subscription_expires(expires_at)}</b>\n\n"
-        "Сегодня последний день ловить возможности <b>без лимита</b>.\n"
-        "Завтра AI-поиск снова станет 3 раза в день.\n\n"
-        "💎 <b>Хит:</b> 6 месяцев — 7 990 ₸ (экономия 1 990 ₸)\n"
-        "🏆 <b>Навсегда:</b> Безлимит — 49 000 ₸ один раз\n\n"
+        "🚨 <b>Завтра trial выключается</b>\n\n"
+        f"Последний полный день: до <b>{_format_subscription_expires(expires_at)}</b>.\n\n"
+        "Сегодня — лучший момент:\n"
+        "• обновить профиль\n"
+        "• сохранить важные гранты из каталога\n"
+        "• выбрать тариф, пока привычка свежая\n\n"
+        "💎 <b>Рекомендуем:</b> 3 месяца — 4 990 ₸ + ментор на подачу (для своих)\n\n"
         f"{_subscription_checkout_hint()}"
     )
 
 
 def get_trial_expired_message() -> str:
     return (
-        "🔒 <b>Пробный период Lumo завершён</b>\n\n"
-        "Спасибо, что попробовал Lumo × AI Startify!\n\n"
-        "Сейчас снова действует бесплатный режим:\n"
-        "• 3 AI-запроса в день\n"
-        "• каталог и уведомления остаются\n\n"
-        "Хочешь снова <b>без лимита</b> и ежедневные подборки на полную?\n\n"
-        f"{_subscription_price_lines()}\n\n"
-        "📱 Для счёта в Kaspi понадобится номер телефона, привязанный к Kaspi.\n"
+        "🔒 <b>Trial закончился</b>\n\n"
+        "Streak сброшен — но каталог и уведомления остались.\n\n"
+        "Сейчас:\n"
+        "• <b>3 AI-запроса</b> в день\n"
+        "• подборки из каналов работают\n\n"
+        "Верни безлимит за минуту:\n\n"
+        f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}"
     )
 
 
 def get_trial_winback_3d() -> str:
     return (
-        "👋 <b>Мы скучаем — без лимита AI всего в одном шаге</b>\n\n"
-        "3 дня назад закончился trial. За это время в каталоге могли появиться "
-        "новые гранты и стажировки под твой профиль.\n\n"
-        "🚀 Вернись на полную мощность:\n"
-        "• <b>3 месяца</b> — 4 990 ₸\n"
-        "• <b>6 месяцев</b> — 7 990 ₸\n"
-        "• <b>12 месяцев</b> — 11 880 ₸\n"
-        "• <b>Безлимит навсегда</b> — 49 000 ₸\n\n"
+        "👀 <b>3 дня без полного Lumo</b>\n\n"
+        "Пока ты на паузе, в каталоге могли появиться гранты под твой профиль — "
+        "с 3 AI-запросами в день их сложнее разобрать.\n\n"
+        "Вернись на полную:\n"
+        f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}"
     )
 
 
 def get_trial_winback_7d() -> str:
     return (
-        "🎯 <b>Последнее напоминание от Lumo</b>\n\n"
-        "Неделю назад у тебя был полный доступ — AI без лимита и умные подборки.\n\n"
-        "Один клик — и снова не пропустишь дедлайны по грантам и хакатонам.\n\n"
-        "🔥 Спец-предложение: <b>6 месяцев — 7 990 ₸</b>\n"
-        "или <b>Безлимит — 49 000 ₸</b> (платишь один раз).\n\n"
+        "😢 <b>Неделя без безлимита</b>\n\n"
+        "Ты уже знаешь, как Lumo экономит время на поиске возможностей. "
+        "Один шаг — и снова AI без лимита + ментор для своих.\n\n"
+        "🔥 <b>3 месяца — 4 990 ₸</b> — самый популярный тариф\n\n"
+        f"{_subscription_checkout_hint()}"
+    )
+
+
+def get_trial_winback_14d() -> str:
+    return (
+        "📌 <b>Финальное напоминание</b>\n\n"
+        "Две недели назад у тебя был полный Lumo. Если гранты и стажировки всё ещё актуальны — "
+        "напиши нам, подключим за пару минут.\n\n"
+        f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}\n\n"
-        "Если не актуально — просто игнорируй. Мы всё равно пришлём важное из твоих каналов."
+        "<i>Дальше будем присылать только важное из твоих каналов — без спама.</i>"
+    )
+
+
+def get_freemium_limit_nudge() -> str:
+    return (
+        "🛑 <b>Лимит AI на сегодня</b>\n\n"
+        "3 запроса закончились — как лимит жизней в игре.\n\n"
+        "Завтра снова 3 попытки, или подключи безлимит:\n"
+        f"{_subscription_hero_offer()}\n\n"
+        f"{_subscription_checkout_hint()}"
     )

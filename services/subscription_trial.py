@@ -83,6 +83,9 @@ async def apply_startify_start(
     user.tariff_plan = PLAN_TRIAL_7D
     user.tariff_expires_at = expires_at_for_plan(PLAN_TRIAL_7D)
     await state_repo.set(_trial_used_key(user.id), "1")
+    from services.subscription_grant import clear_subscription_push_flags
+
+    await clear_subscription_push_flags(session, user.id)
     for push_key in ("remind_3d", "remind_1d", "expired", "winback_3d", "winback_7d"):
         await state_repo.set(f"sub_push:{user.id}:{push_key}", "")
 
