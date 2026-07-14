@@ -15,7 +15,7 @@ export const FALLBACK_PLANS = [
   {
     id: 'plan_1m',
     label: '1 месяц',
-    priceKzt: 990,
+    priceKzt: 1890,
     description: 'Без лимита AI-поиска',
     benefit: null,
   },
@@ -29,9 +29,9 @@ export const FALLBACK_PLANS = [
   {
     id: 'plan_6m',
     label: '6 месяцев',
-    priceKzt: 7990,
+    priceKzt: 5940,
     description: 'Тариф «Старт»',
-    benefit: 'Экономия 1 990 ₸',
+    benefit: 'Ментор на подачу',
     featured: true,
   },
   {

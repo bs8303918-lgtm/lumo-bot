@@ -14,7 +14,7 @@ export default function PriceListView({ open, onClose, plans, meta, profile, rea
   if (!open) return null;
 
   const isLimitReason = reason === 'limit';
-  const dailyLimit = meta?.aiSearchDailyLimit ?? 3;
+  const needsSubscription = reason === 'subscription';
 
   const handleClose = () => {
     haptic('light');
@@ -44,7 +44,7 @@ export default function PriceListView({ open, onClose, plans, meta, profile, rea
           </button>
         </div>
 
-        <PricingHeader limitNotice={isLimitReason} dailyLimit={dailyLimit} />
+        <PricingHeader limitNotice={isLimitReason} needsSubscription={needsSubscription} meta={meta} />
         <PlanCards plans={resolved} selectedId={selectedPlan?.id} onSelect={setSelectedPlan} />
         <div
           className="fixed bottom-0 left-0 right-0 z-20 px-4 pt-3 pb-4 border-t"
@@ -59,6 +59,7 @@ export default function PriceListView({ open, onClose, plans, meta, profile, rea
             meta={meta}
             profile={profile}
             limitNotice={isLimitReason}
+            needsSubscription={needsSubscription}
             onClose={handleClose}
             selectedPlan={selectedPlan}
           />

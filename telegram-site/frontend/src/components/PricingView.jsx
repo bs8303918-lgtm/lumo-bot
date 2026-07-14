@@ -2,9 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 import PlanCards, { PricingFooter, PricingHeader } from './PlanCards';
 import { resolvePlans } from '../utils/pricing';
 
-export default function PricingView({ meta, profile, plans, limitNotice = false, onDismissLimit }) {
+export default function PricingView({ meta, profile, plans, limitNotice = false, needsSubscription = false, onDismissLimit }) {
   const resolved = resolvePlans(plans);
-  const dailyLimit = meta?.aiSearchDailyLimit ?? 3;
   const [selectedPlan, setSelectedPlan] = useState(resolved.find((p) => p.featured || p.id === 'plan_6m') || null);
   const kaspiRef = useRef(null);
 
@@ -17,7 +16,11 @@ export default function PricingView({ meta, profile, plans, limitNotice = false,
 
   return (
     <div className="pb-36">
-      <PricingHeader limitNotice={limitNotice} dailyLimit={dailyLimit} />
+      <PricingHeader
+        limitNotice={limitNotice}
+        needsSubscription={needsSubscription}
+        meta={meta}
+      />
       <PlanCards plans={resolved} selectedId={selectedPlan?.id} onSelect={handleSelectPlan} />
       <div
         ref={kaspiRef}
@@ -34,7 +37,8 @@ export default function PricingView({ meta, profile, plans, limitNotice = false,
             meta={meta}
             profile={profile}
             limitNotice={limitNotice}
-            onClose={limitNotice ? onDismissLimit : null}
+            needsSubscription={needsSubscription}
+            onClose={limitNotice || needsSubscription ? onDismissLimit : null}
             selectedPlan={selectedPlan}
           />
         </div>

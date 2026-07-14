@@ -4,6 +4,7 @@ import { Send } from 'lucide-react';
 
 import { apiFetch, haptic } from '../api';
 
+import AiPaywall from './AiPaywall';
 import OpportunityCard from './OpportunityCard';
 import { SearchResultsFeedback } from './SearchFeedback';
 
@@ -14,50 +15,32 @@ const FALLBACK_SUGGESTIONS = [
   { emoji: '🏆', text: 'Конкурсы и олимпиады для школьников' },
 ];
 
-const DEFAULT_PROMPT =
-  'Я стартапер. Ищу питчи, конкурсы стартапов, хакатоны, гранты, стажировки, митапы и онлайн-встречи в Казахстане — хочу развивать проект и учиться у других.';
+const DEFAULT_PROMPT = '';
 
 export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, onOpenPriceList }) {
   const resultsRef = useRef(null);
-  const limitPopupShownRef = useRef(false);
   const [prompt, setPrompt] = useState(profile?.interestQuery || DEFAULT_PROMPT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
 
-  const dailyLimit = profile?.aiSearchLimit ?? meta?.aiSearchDailyLimit ?? 3;
-  const remaining = profile?.aiSearchRemaining ?? dailyLimit;
   const isAdmin = profile?.isAdmin;
+  const enforced = Boolean(meta?.subscriptionsEnforced || profile?.subscription?.enforced);
+  const hasAccess = isAdmin || profile?.hasAiAccess || profile?.subscription?.hasAiAccess || profile?.subscription?.isActive;
   const minLen = meta?.interestMinLength ?? 25;
-  const isProfileSave = prompt.trim().length >= minLen;
-  const limitBlocksProfile = isProfileSave && remaining <= 0 && !isAdmin;
   const suggestions = meta?.searchSuggestions?.length ? meta.searchSuggestions : FALLBACK_SUGGESTIONS;
 
   useEffect(() => {
     if (profile?.interestQuery) setPrompt(profile.interestQuery);
   }, [profile?.interestQuery]);
 
-  useEffect(() => {
-    if (isAdmin || remaining > 0 || !onOpenPriceList) return;
-    if (limitPopupShownRef.current) return;
-    if ((profile?.aiSearchUsed ?? 0) < dailyLimit) return;
-    limitPopupShownRef.current = true;
-    onOpenPriceList('limit');
-  }, [isAdmin, remaining, dailyLimit, profile?.aiSearchUsed, onOpenPriceList]);
-
-  const triggerPriceList = () => {
-    haptic('light');
-    onOpenPriceList?.('limit');
-  };
+  if (enforced && !hasAccess) {
+    return <AiPaywall meta={meta} onOpenPriceList={onOpenPriceList} />;
+  }
 
   const submit = async (text = prompt) => {
     const query = text.trim();
-    const willSaveProfile = query.length >= minLen;
     if (query.length < 3 || loading) return;
-    if (willSaveProfile && remaining <= 0 && !isAdmin) {
-      triggerPriceList();
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -65,15 +48,14 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
     haptic('light');
 
     try {
-      let data;
-      const body = JSON.stringify({
-        query,
-        saveInterest: willSaveProfile,
-        limit: 12,
-      });
-      data = await apiFetch('/lumo/match', {
+      const willSaveProfile = query.length >= minLen;
+      const data = await apiFetch('/lumo/match', {
         method: 'POST',
-        body,
+        body: JSON.stringify({
+          query,
+          saveInterest: willSaveProfile,
+          limit: 12,
+        }),
       });
       setResult({
         query,
@@ -86,15 +68,11 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
       });
       if (willSaveProfile) {
         setTimeout(() => onProfileRefresh?.(), 800);
-        if (!isAdmin && (profile?.aiSearchRemaining ?? 1) <= 1) {
-          limitPopupShownRef.current = false;
-          setTimeout(() => onOpenPriceList?.('limit'), 400);
-        }
       }
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
     } catch (err) {
       setError(err.message);
-      if (err.showPricing) onOpenPriceList?.('limit');
+      if (err.showPricing || err.needsSubscription) onOpenPriceList?.('subscription');
     } finally {
       setLoading(false);
     }
@@ -107,27 +85,15 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
         <p className="text-[13px] leading-relaxed" style={{ color: 'var(--lumo-text-muted)' }}>
           Короткий запрос — быстрый поиск. Длинный (от {minLen} символов) — сохраню профиль и буду присылать в бот.
         </p>
-        <p
-          className="text-[12px] mt-2 font-medium"
-          style={{ color: limitBlocksProfile ? '#f87171' : 'var(--lumo-text-muted)' }}
-        >
-          {isAdmin
-            ? `Admin · без лимита · в каталоге ${profile?.catalogCount ?? '…'} записей`
-            : limitBlocksProfile
-              ? `Лимит AI на сегодня (${dailyLimit}/${dailyLimit}). Открой вкладку Price.`
-              : isProfileSave
-                ? `Сохранение профиля: осталось ${remaining} из ${dailyLimit} на сегодня`
-                : 'Быстрый поиск — без лимита'}
-        </p>
-        {limitBlocksProfile && !isAdmin && (
-          <button
-            type="button"
-            onClick={triggerPriceList}
-            className="text-[12px] font-semibold mt-2 underline"
-            style={{ color: 'var(--lumo-link)' }}
-          >
-            Смотреть Price →
-          </button>
+        {isAdmin && (
+          <p className="text-[12px] mt-2 font-medium" style={{ color: 'var(--lumo-text-muted)' }}>
+            Admin · без лимита · в каталоге {profile?.catalogCount ?? '…'} записей
+          </p>
+        )}
+        {profile?.subscription?.isActive && !isAdmin && (
+          <p className="text-[12px] mt-2 font-medium" style={{ color: 'var(--lumo-link)' }}>
+            Подписка активна · {profile.subscription.planLabel || profile.subscription.plan}
+          </p>
         )}
       </header>
 
@@ -148,7 +114,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
         <button
           type="button"
           onClick={() => submit()}
-          disabled={prompt.trim().length < 3 || loading || limitBlocksProfile}
+          disabled={prompt.trim().length < 3 || loading}
           className="absolute right-3 bottom-3 w-10 h-10 rounded-full flex items-center justify-center lumo-send-btn disabled:opacity-40 transition-opacity"
           aria-label="Отправить"
         >
@@ -166,7 +132,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
               <button
                 key={text}
                 type="button"
-                disabled={loading || (text.length >= minLen && limitBlocksProfile)}
+                disabled={loading}
                 onClick={() => setPrompt(text)}
                 className="lumo-chip w-full text-left px-4 py-3 text-[13px] font-medium transition active:scale-[0.99] disabled:opacity-40"
               >
@@ -246,7 +212,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
                   <button
                     key={text}
                     type="button"
-                    disabled={loading || (text.length >= minLen && limitBlocksProfile)}
+                    disabled={loading}
                     onClick={() => {
                       setPrompt(text);
                       submit(text);

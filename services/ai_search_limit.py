@@ -6,16 +6,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from analytics.event_types import AI_SEARCH
 from config import get_settings
 from db.repositories.users import EventRepository
-from services.subscription import effective_ai_daily_limit
+from services.subscription import effective_ai_daily_limit, has_ai_access
 
 # Казахстан (UTC+5), без zoneinfo/tzdata — работает на Windows
 _KZ = timezone(timedelta(hours=5))
+
+_SUBSCRIPTION_REQUIRED_MSG = (
+    "Нужна подписка. Подключи 7 дней бесплатно — напиши @taton4i в Telegram."
+)
 
 
 def ai_search_day_start_utc() -> datetime:
     local_now = datetime.now(_KZ)
     local_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
     return local_start.astimezone(timezone.utc)
+
 
 async def ai_search_usage(
     session: AsyncSession,
@@ -29,6 +34,8 @@ async def ai_search_usage(
         from db.repositories.users import UserRepository
 
         user = await UserRepository(session).get_by_id(user_id)
+    if user is not None and not has_ai_access(user, telegram_id=telegram_id):
+        return {"used": 0, "limit": 0, "remaining": 0}
     limit = (
         effective_ai_daily_limit(user, telegram_id=telegram_id)
         if user is not None
@@ -55,8 +62,19 @@ async def enforce_ai_search_limit(
     from db.repositories.users import UserRepository
 
     user = await UserRepository(session).get_by_id(user_id)
+    if user is not None and settings.subscriptions_enforced and not has_ai_access(
+        user, telegram_id=telegram_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=_SUBSCRIPTION_REQUIRED_MSG,
+            headers={
+                "X-Lumo-Show-Pricing": "1",
+                "X-Lumo-Needs-Subscription": "1",
+            },
+        )
     stats = await ai_search_usage(session, user_id, telegram_id=telegram_id, user=user)
-    if stats["remaining"] <= 0:
+    if stats["remaining"] <= 0 and stats["limit"] > 0:
         raise HTTPException(
             status_code=429,
             detail=(
@@ -64,4 +82,13 @@ async def enforce_ai_search_limit(
                 "Оформи подписку для безлимитного доступа или попробуй завтра."
             ),
             headers={"X-Lumo-Show-Pricing": "1"},
+        )
+    if stats["remaining"] <= 0:
+        raise HTTPException(
+            status_code=403,
+            detail=_SUBSCRIPTION_REQUIRED_MSG,
+            headers={
+                "X-Lumo-Show-Pricing": "1",
+                "X-Lumo-Needs-Subscription": "1",
+            },
         )

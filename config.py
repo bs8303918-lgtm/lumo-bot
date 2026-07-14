@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     llm_backfill_batch_limit: int = 5
     llm_enable_pair_relevance: bool = False
     llm_interest_categorization: bool = True
+    llm_catalog_match_rerank: bool = True
     llm_request_delay_seconds: float = 5.0
     llm_429_max_retries: int = 1
     llm_429_retry_base_seconds: float = 8.0

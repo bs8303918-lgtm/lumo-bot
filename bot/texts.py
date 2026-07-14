@@ -338,8 +338,9 @@ def _subscription_checkout_hint() -> str:
 
 def _subscription_hero_offer() -> str:
     return (
+        "🔥 <b>1 месяц — 1 890 ₸</b>\n"
         "🔥 <b>3 месяца — 4 990 ₸</b>\n"
-        "⭐ <b>6 месяцев — 7 990 ₸</b> (тариф «Старт»)\n"
+        "⭐ <b>6 месяцев — 5 940 ₸</b> (тариф «Старт»)\n"
         "💎 <b>12 месяцев — 11 880 ₸</b> (990 ₸/мес)\n"
         "🏆 <b>Безлимит — 49 000 ₸</b> навсегда"
     )
@@ -366,7 +367,7 @@ def get_trial_day2_message(expires_at) -> str:
         "• есть ли новые гранты в каталоге\n"
         "• обновлён ли профиль /set_interest\n\n"
         f"Полный доступ ещё до <b>{_format_subscription_expires(expires_at)}</b>.\n\n"
-        "Потом снова будет 3 AI-запроса в день — успей настроить под себя 💪"
+        "Потом без подписки AI-поиск отключится — успей настроить под себя 💪"
     )
 
 
@@ -384,7 +385,7 @@ def get_trial_halftime_message(expires_at) -> str:
 def get_trial_remind_3d(expires_at) -> str:
     return (
         "⏳ <b>3 дня — и trial закончится</b>\n\n"
-        "Ты привык к AI без лимита. Без подписки снова будет <b>3 запроса в день</b>.\n\n"
+        "Ты привык к AI без лимита. Без подписки AI-поиск будет недоступен.\n\n"
         "Не потеряй ритм — зафиксируй доступ сейчас:\n\n"
         f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}"
@@ -408,9 +409,8 @@ def get_trial_expired_message() -> str:
     return (
         "🔒 <b>Trial закончился</b>\n\n"
         "Полный доступ выключился — каталог и уведомления остались.\n\n"
-        "Сейчас:\n"
-        "• <b>3 AI-запроса</b> в день\n"
-        "• подборки из каналов работают\n\n"
+        "Сейчас AI-поиск только по подписке.\n"
+        "🎁 <b>7 дней бесплатно</b> — напиши нам, подключим trial.\n\n"
         "Верни безлимит за минуту:\n\n"
         f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}"
@@ -421,7 +421,7 @@ def get_trial_winback_3d() -> str:
     return (
         "👀 <b>3 дня без полного Lumo</b>\n\n"
         "Пока ты на паузе, в каталоге могли появиться гранты под твой профиль — "
-        "с 3 AI-запросами в день их сложнее разобрать.\n\n"
+        "без подписки AI-поиск недоступен, их сложнее разобрать.\n\n"
         "Вернись на полную:\n"
         f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}"
@@ -451,9 +451,9 @@ def get_trial_winback_14d() -> str:
 
 def get_freemium_limit_nudge() -> str:
     return (
-        "🛑 <b>Лимит AI на сегодня</b>\n\n"
-        "3 запроса закончились.\n\n"
-        "Завтра снова 3 попытки, или подключи безлимит:\n"
+        "🔒 <b>Нужна подписка</b>\n\n"
+        "AI-поиск доступен с подпиской.\n\n"
+        "🎁 <b>7 дней бесплатно</b> — напиши нам:\n"
         f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}"
     )

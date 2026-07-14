@@ -219,7 +219,7 @@ class OpportunityCatalogService:
         force: bool = False,
     ) -> tuple[int, list[str]]:
         """
-        Мгновенный подбор из каталога — 0 вызовов LLM.
+        Подбор из каталога: keyword score + опциональный LLM rerank.
         Одно сообщение-подборка, не больше notification_digest_max_flush карточек.
         """
         settings = self.settings
@@ -249,10 +249,20 @@ class OpportunityCatalogService:
         ranked = rank_for_user(
             interest_query,
             candidates,
-            limit=cap,
+            limit=cap * 3,
             min_score=score_floor,
             format_preferences=format_prefs,
         )
+        if ranked and self.settings.llm_catalog_match_rerank and self.settings.llm_configured:
+            from services.catalog_rerank import llm_rerank_catalog
+
+            ranked = await llm_rerank_catalog(
+                interest_query,
+                ranked,
+                max_pick=cap,
+            )
+        else:
+            ranked = ranked[:cap]
         if not ranked:
             return 0, categories
 

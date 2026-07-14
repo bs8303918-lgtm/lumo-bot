@@ -25,7 +25,7 @@ from services.interest_matcher import (
     resolve_catalog_filter,
 )
 from services.opportunity_catalog import catalog_repo
-from services.subscription import public_plans, subscription_status
+from services.subscription import has_ai_access, public_plans, subscription_status
 from bot.background import run_interest_side_effects
 from services.catalog_display import entry_has_cash_prize, sort_opportunities_by_newest
 from services.webapp_catalog import (
@@ -33,7 +33,7 @@ from services.webapp_catalog import (
     build_category_list,
     category_chips,
     dedupe_opportunities,
-    match_opportunities_for_user,
+    match_opportunities_for_user_async,
     plural_opportunities,
     serialize_opportunity,
     sort_opportunities_by_deadline,
@@ -114,7 +114,7 @@ async def _search_catalog(
         ),
         load_match_feedback_hints(user.id, query),
     )
-    items, matched_categories = match_opportunities_for_user(
+    items, matched_categories = await match_opportunities_for_user_async(
         query,
         raw,
         limit=limit,
@@ -169,6 +169,7 @@ async def get_me(
         "aiSearchUsed": search["used"],
         "aiSearchLimit": search["limit"],
         "aiSearchRemaining": search["remaining"],
+        "hasAiAccess": has_ai_access(user, telegram_id=user.telegram_id),
         "catalogCount": catalog_count,
         "subscription": subscription_status(user),
     }
@@ -416,6 +417,7 @@ async def lumo_match(
     save_profile = payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH
     if save_profile:
         await enforce_ai_search_limit(session, user.id, telegram_id=user.telegram_id)
+        await _persist_interest(session, user, query, skip_llm=False)
 
     items, cat_list, _raw_categories = await _search_catalog(
         session,
@@ -441,7 +443,7 @@ async def lumo_match(
             user.id,
             query,
             results_count=count,
-            profile_changed=(user.interest_query or "").strip() != query,
+            profile_changed=False,
             log_ai_search=True,
         )
 

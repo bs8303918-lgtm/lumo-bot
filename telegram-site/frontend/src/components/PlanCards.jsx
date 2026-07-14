@@ -142,7 +142,7 @@ function KaspiPaymentBlock({ phone, selectedPlan, supportContact }) {
   );
 }
 
-export function PricingFooter({ meta, profile, onClose, limitNotice = false, selectedPlan }) {
+export function PricingFooter({ meta, profile, onClose, limitNotice = false, needsSubscription = false, selectedPlan }) {
   const checkout = meta?.startifyCheckoutUrl;
   const enforced = profile?.subscription?.enforced;
   const kaspiPhone = meta?.kaspiPaymentPhone || KASPI_PAYMENT_PHONE;
@@ -165,43 +165,50 @@ export function PricingFooter({ meta, profile, onClose, limitNotice = false, sel
         />
       )}
 
-      {onClose && (
+      {(needsSubscription || limitNotice) && onClose && (
         <button
           type="button"
           onClick={onClose}
           className="w-full py-3 rounded-2xl text-[14px] font-semibold"
           style={{ background: 'var(--lumo-surface-muted)', color: 'var(--lumo-text)' }}
         >
-          {limitNotice ? 'Продолжить с каталогом' : 'Закрыть'}
+          {needsSubscription || limitNotice ? 'Перейти в каталог' : 'Закрыть'}
         </button>
-      )}
-
-      {limitNotice && (
-        <p className="text-[11px] text-center" style={{ color: 'var(--lumo-text-muted)' }}>
-          Короткий поиск (&lt; {meta?.interestMinLength ?? 25} символов) всё ещё доступен · лимит
-          обновится завтра
-        </p>
       )}
     </div>
   );
 }
 
-export function PricingHeader({ limitNotice, dailyLimit = 3 }) {
+export function PricingHeader({ limitNotice, needsSubscription = false, meta }) {
+  const contact = meta?.supportContact || '@taton4i';
   return (
     <header className="mb-5">
       <div className="flex items-center gap-2 mb-2">
         <Sparkles size={18} style={{ color: 'var(--lumo-accent)' }} />
         <h1 className="text-[22px] font-bold leading-tight">Тарифы</h1>
       </div>
-      {limitNotice ? (
+      {needsSubscription ? (
+        <div className="space-y-2">
+          <p className="text-[13px] leading-relaxed" style={{ color: '#f87171' }}>
+            AI-поиск доступен с подпиской.
+          </p>
+          <div
+            className="rounded-2xl px-4 py-3 text-[13px]"
+            style={{ background: 'var(--lumo-surface-muted)' }}
+          >
+            <p className="font-semibold mb-1">🎁 7 дней бесплатно</p>
+            <p style={{ color: 'var(--lumo-text-muted)' }}>
+              Напиши <strong>{contact}</strong> — подключим trial и менторскую поддержку на подачу.
+            </p>
+          </div>
+        </div>
+      ) : limitNotice ? (
         <p className="text-[13px] leading-relaxed" style={{ color: '#f87171' }}>
-          {dailyLimit} AI-запроса на сегодня закончились. Выбери тариф — безлимитный AI-поиск и
-          сохранение профиля.
+          Выбери тариф — безлимитный AI-поиск и сохранение профиля.
         </p>
       ) : (
         <p className="text-[13px] leading-relaxed" style={{ color: 'var(--lumo-text-muted)' }}>
-          Безлимитный AI-поиск · каталог · уведомления в боте. Сейчас бесплатно —{' '}
-          {dailyLimit} AI-запроса в день.
+          Безлимитный AI-поиск · каталог · уведомления в боте. 7 дней бесплатно — напиши {contact}.
         </p>
       )}
     </header>

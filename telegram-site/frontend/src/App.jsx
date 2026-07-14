@@ -65,7 +65,7 @@ export default function App() {
   const [meta, setMeta] = useState(null);
   const [profile, setProfile] = useState(null);
   const [plans, setPlans] = useState([]);
-  const [pricingLimitNotice, setPricingLimitNotice] = useState(false);
+  const [pricingNotice, setPricingNotice] = useState(null);
   const [authError, setAuthError] = useState(null);
   const inTelegram = Boolean(getTelegram()?.initData);
   const botUsername = meta?.botUsername || 'LumoAI1bot';
@@ -97,17 +97,10 @@ export default function App() {
 
   const resolvedPlans = resolvePlans(plans);
 
-  const openPricing = useCallback(
-    (reason = 'manual') => {
-      if (reason === 'limit') {
-        setPricingLimitNotice(true);
-        setView('pricing');
-      } else {
-        setView('pricing');
-      }
-    },
-    [],
-  );
+  const openPricing = useCallback((reason = 'manual') => {
+    setPricingNotice(reason === 'manual' ? null : reason);
+    setView('pricing');
+  }, []);
 
   useEffect(() => {
     const tg = getTelegram();
@@ -175,7 +168,7 @@ export default function App() {
           <ViewTabs
             active={view}
             onChange={(id) => {
-              if (id !== 'pricing') setPricingLimitNotice(false);
+              if (id !== 'pricing') setPricingNotice(null);
               setView(id);
             }}
             isAdmin={profile?.isAdmin}
@@ -211,9 +204,10 @@ export default function App() {
             meta={meta}
             profile={profile}
             plans={resolvedPlans}
-            limitNotice={pricingLimitNotice}
+            needsSubscription={pricingNotice === 'subscription'}
+            limitNotice={pricingNotice === 'limit'}
             onDismissLimit={() => {
-              setPricingLimitNotice(false);
+              setPricingNotice(null);
               setView('catalog');
             }}
           />

@@ -108,7 +108,8 @@ export async function apiFetch(path, options = {}) {
     }
     const err = new Error(data.detail || `HTTP ${res.status}`);
     err.status = res.status;
-    err.showPricing = res.status === 429 || res.headers.get('X-Lumo-Show-Pricing') === '1';
+    err.showPricing = res.status === 429 || res.status === 403 || res.headers.get('X-Lumo-Show-Pricing') === '1';
+    err.needsSubscription = res.status === 403 || res.headers.get('X-Lumo-Needs-Subscription') === '1';
     throw err;
   }
   return data;

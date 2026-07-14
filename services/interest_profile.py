@@ -24,7 +24,7 @@ class InterestProfile:
 
     def all_categories(self) -> list[str]:
         merged: list[str] = []
-        for item in [*self.types, *self.domains]:
+        for item in [*self.types, *self.domains, *self.unknown_domains]:
             if item not in merged:
                 merged.append(item)
         return merged[:8]
@@ -132,17 +132,66 @@ def is_vague_or_unsure_interest(text: str) -> bool:
     return False
 
 
+_DOMAIN_DEFAULT_TYPES: dict[str, tuple[str, ...]] = {
+    "биология": ("олимпиада", "стипендия", "конкурс"),
+    "физика": ("олимпиада", "стипендия", "конкурс"),
+    "математика": ("олимпиада", "стипендия", "конкурс"),
+    "информатика": ("олимпиада", "хакатон", "стажировка"),
+    "химия": ("олимпиада", "стипендия", "конкурс"),
+    "астрофизика": ("олимпиада", "стипендия", "конкурс"),
+    "нейронаука": ("стипендия", "олимпиада", "стажировка"),
+    "медицина": ("стипендия", "стажировка", "конкурс"),
+    "it": ("хакатон", "стажировка", "конкурс"),
+    "стартапы": ("хакатон", "грант", "конкурс", "мероприятие"),
+    "дизайн": ("конкурс", "стажировка", "курс"),
+    "экология": ("грант", "конкурс", "стипендия"),
+    "журналистика": ("конкурс", "стажировка", "курс"),
+    "право": ("стипендия", "конкурс", "стажировка"),
+    "экономика": ("стипендия", "стажировка", "кейс"),
+    "финансы": ("стипендия", "стажировка", "кейс"),
+    "искусство": ("конкурс", "грант", "стипендия"),
+    "кибербезопасность": ("хакатон", "стажировка", "конкурс"),
+    "робототехника": ("олимпиада", "хакатон", "конкурс"),
+    "инженерия": ("олимпиада", "стажировка", "конкурс"),
+    "stem": ("олимпиада", "стипендия", "хакатон"),
+    "психология": ("стипендия", "конкурс", "стажировка"),
+    "лингвистика": ("олимпиада", "стипендия", "конкурс"),
+    "география": ("олимпиада", "стипендия", "конкурс"),
+    "музыка": ("конкурс", "стипендия", "курс"),
+    "спорт": ("конкурс", "стипендия", "мероприятие"),
+}
+
+
+def infer_types_from_domains(domains: list[str]) -> list[str]:
+    merged: list[str] = []
+    for domain in domains:
+        for item in _DOMAIN_DEFAULT_TYPES.get(domain.lower().strip(), ()):
+            if item not in merged:
+                merged.append(item)
+    return merged[:4]
+
+
 def apply_interest_defaults(profile: InterestProfile, text: str) -> None:
     """
-    Размытый запрос → только «конкурс» (для школьников это универсальная категория).
-    Пустой тип без явных ключевых слов → тоже «конкурс».
+    Размытый запрос → несколько универсальных типов для школьников.
+    Узкая специальность без явного типа → типы из предметной области.
     """
     vague = is_vague_or_unsure_interest(text)
     if vague:
-        profile.types = ["конкурс"]
+        profile.types = ["конкурс", "олимпиада", "стипендия"]
         return
+    if not profile.types and profile.domains:
+        inferred = infer_types_from_domains(profile.domains)
+        if inferred:
+            profile.types = inferred
+            return
+    if not profile.types and profile.unknown_domains:
+        inferred = infer_types_from_domains(profile.unknown_domains)
+        if inferred:
+            profile.types = inferred
+            return
     if not profile.types:
-        profile.types = ["конкурс"]
+        profile.types = ["стипендия", "конкурс", "олимпиада"]
 
 
 def _build_admin_questions(text: str, profile: InterestProfile) -> list[str]:

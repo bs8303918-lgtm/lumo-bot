@@ -26,8 +26,8 @@ PLAN_CATALOG: dict[str, dict] = {
         "label": "Бесплатно",
         "durationDays": None,
         "priceKzt": 0,
-        "aiDailyLimit": 3,
-        "description": "3 AI-запроса в день · каталог · уведомления",
+        "aiDailyLimit": 0,
+        "description": "Каталог · уведомления · AI по подписке",
         "benefit": None,
     },
     PLAN_TRIAL_7D: {
@@ -43,7 +43,7 @@ PLAN_CATALOG: dict[str, dict] = {
         "id": PLAN_1M,
         "label": "1 месяц",
         "durationDays": 30,
-        "priceKzt": 990,
+        "priceKzt": 1890,
         "aiDailyLimit": 999,
         "description": "Без лимита AI-поиска",
         "benefit": None,
@@ -61,10 +61,10 @@ PLAN_CATALOG: dict[str, dict] = {
         "id": PLAN_6M,
         "label": "6 месяцев",
         "durationDays": 180,
-        "priceKzt": 7990,
+        "priceKzt": 5940,
         "aiDailyLimit": 999,
         "description": "Тариф «Старт»",
-        "benefit": "Экономия 1 990 ₸",
+        "benefit": "Ментор на подачу",
     },
     PLAN_12M: {
         "id": PLAN_12M,
@@ -169,6 +169,15 @@ def is_paid_plan_active(user: User, *, now: datetime | None = None) -> bool:
     return expires > now
 
 
+def has_ai_access(user: User, *, telegram_id: int | None = None) -> bool:
+    settings = get_settings()
+    if telegram_id is not None and settings.is_admin(telegram_id):
+        return True
+    if not settings.subscriptions_enforced:
+        return True
+    return is_paid_plan_active(user)
+
+
 def effective_ai_daily_limit(user: User, *, telegram_id: int | None = None) -> int:
     settings = get_settings()
     if telegram_id is not None and settings.is_admin(telegram_id):
@@ -178,7 +187,7 @@ def effective_ai_daily_limit(user: User, *, telegram_id: int | None = None) -> i
     if is_paid_plan_active(user):
         meta = PLAN_CATALOG.get(user.tariff_plan or "", {})
         return int(meta.get("aiDailyLimit") or 999)
-    return settings.ai_search_daily_limit
+    return 0
 
 
 def subscription_status(user: User) -> dict:
@@ -202,6 +211,7 @@ def subscription_status(user: User) -> dict:
         "partnerRef": user.partner_ref,
         "kaspiPhone": user.kaspi_phone,
         "enforced": settings.subscriptions_enforced,
+        "hasAiAccess": has_ai_access(user, telegram_id=user.telegram_id),
         "aiDailyLimit": effective_ai_daily_limit(user, telegram_id=user.telegram_id),
     }
 

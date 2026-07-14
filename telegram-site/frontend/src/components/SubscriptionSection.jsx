@@ -34,8 +34,8 @@ export default function SubscriptionSection({ meta, profile, plans, onOpenPriceL
 
       <p className="text-[13px] mb-3" style={{ color: 'var(--lumo-text-muted)' }}>
         {enforced
-          ? `Оплата через Kaspi: ${kaspiPhone}`
-          : `Сейчас бесплатно: ${meta?.aiSearchDailyLimit ?? 3} AI-запроса в день. Тарифы — Kaspi ${kaspiPhone}.`}
+          ? `AI-поиск по подписке · Kaspi ${kaspiPhone} · 7 дней бесплатно у ${meta?.supportContact || '@taton4i'}`
+          : `Тарифы · оплата Kaspi ${kaspiPhone}`}
       </p>
 
       {sub && (

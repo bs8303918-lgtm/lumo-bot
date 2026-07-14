@@ -454,6 +454,11 @@ def resolve_catalog_filter(categories: list[str]) -> tuple[list[str], list[str]]
         return types, extra
 
     if extra:
+        from services.interest_profile import infer_types_from_domains
+
+        inferred = infer_types_from_domains(extra)
+        if inferred:
+            return inferred, extra
         return list(ALL_CATALOG_TYPES), extra
 
     return list(ALL_CATALOG_TYPES), []
@@ -629,6 +634,8 @@ def relevance_score(
         )
         if domain_hits:
             score += 1.5 + domain_hits * 0.5
+        elif len(domains) >= 1 and score < 5.0:
+            score *= 0.35
         if "стартапы" in domains and entry_startup_related(entry):
             score += 5.0
         elif "стартапы" in domains:

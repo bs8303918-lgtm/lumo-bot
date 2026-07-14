@@ -29,7 +29,13 @@ async def _approved_domains_cached() -> list[str]:
 
 
 def _needs_llm_categorization(profile: InterestProfile) -> bool:
-    """LLM если мало типов или профиль размытый."""
+    """LLM если мало типов, размытый профиль или есть специальность без типов."""
+    if profile.domains and len(profile.types) < 2:
+        return True
+    if profile.unknown_domains and not profile.types:
+        return True
+    if len(profile.types) >= 2 and len(profile.domains) >= 1:
+        return False
     if len(profile.types) >= 2:
         return False
     if profile.admin_questions:
@@ -39,6 +45,21 @@ def _needs_llm_categorization(profile: InterestProfile) -> bool:
     if len(profile.types) < 2 and len(profile.all_categories()) < 2:
         return True
     return False
+
+
+def _merge_llm_domains(profile: InterestProfile, llm_domains: list[str]) -> None:
+    from services.interest_domains import all_known_domain_slugs, merge_approved_domains
+
+    known = all_known_domain_slugs()
+    normalized = [str(item).lower().strip().replace(" ", "_") for item in llm_domains if item]
+    merged = merge_approved_domains(profile.domains, [d for d in normalized if d in known])
+    for item in normalized:
+        if item and item not in merged and item not in profile.domains:
+            if item in known:
+                merged.append(item)
+            elif item not in profile.unknown_domains:
+                profile.unknown_domains.append(item)
+    profile.domains = merged[:6]
 
 
 def _merge_llm_types(profile: InterestProfile, llm_categories: list[str]) -> None:
@@ -74,12 +95,24 @@ async def categorize_interest(
         and _needs_llm_categorization(profile)
     ):
         try:
-            llm_cats, _raw = await LLMClient().extract_interest_categories(text)
+            llm_cats, llm_domains, _raw = await LLMClient().extract_interest_categories(text)
             if llm_cats:
                 had_types = bool(profile.types)
                 _merge_llm_types(profile, llm_cats)
                 if profile.types:
                     source = "hybrid" if had_types else "llm"
+            if llm_domains:
+                _merge_llm_domains(profile, llm_domains)
+                if source == "local":
+                    source = "hybrid"
+                logger.info(
+                    "Interest LLM categories user_id=%s source=%s cats=%s domains=%s",
+                    user_id,
+                    source,
+                    profile.types,
+                    profile.domains,
+                )
+            elif llm_cats:
                 logger.info(
                     "Interest LLM categories user_id=%s source=%s cats=%s",
                     user_id,

@@ -22,6 +22,7 @@ from services.interest_matcher import (
     entry_all_tags,
     entry_startup_related,
     extract_categories_from_text,
+    is_domain_category,
     relevance_score,
     wants_startup_focus,
 )
@@ -191,23 +192,57 @@ def _score_entries(
     return scored
 
 
-def match_opportunities_for_user(
+def _profile_domains(categories: list[str]) -> list[str]:
+    return [category for category in categories if is_domain_category(category)]
+
+
+def _entry_passes_domain_gate(
+    text: str,
+    entry: CatalogOpportunity,
+    domains: list[str],
+) -> bool:
+    if not domains:
+        return True
+    blob = " ".join(
+        filter(
+            None,
+            [
+                entry.title,
+                entry.description,
+                entry.requirements,
+                " ".join(entry_all_tags(entry)),
+            ],
+        )
+    ).lower()
+    if any(domain in blob for domain in domains):
+        return True
+    return relevance_score(text, entry) >= 5.0
+
+
+def pick_opportunities_for_user(
     interest_query: str,
     items: list[CatalogOpportunity],
     *,
     limit: int = 12,
     min_score: float | None = None,
     feedback_hints: FeedbackHints | None = None,
-) -> tuple[list[dict], list[str]]:
+) -> tuple[list[CatalogOpportunity], list[str]]:
     text = interest_query.strip()
     categories = extract_categories_from_text(text)
     unique = dedupe_opportunities(items)
     floor = min_score if min_score is not None else MATCH_MIN_SCORE
+    profile_domains = _profile_domains(categories)
 
     intent_types = [c for c in categories if c in OPPORTUNITY_TYPES]
     extra_tags = [c for c in categories if c not in intent_types and c != "другое"]
 
     scored = _score_entries(text, unique, floor=floor, feedback_hints=feedback_hints)
+    if profile_domains:
+        scored = [
+            (score, entry)
+            for score, entry in scored
+            if _entry_passes_domain_gate(text, entry, profile_domains)
+        ]
     picked = [entry for _, entry in scored][:limit]
 
     if wants_startup_focus(categories, text):
@@ -219,7 +254,7 @@ def match_opportunities_for_user(
         if startup_scored:
             picked = [entry for _, entry in startup_scored[:limit]]
 
-    if not picked and (intent_types or extra_tags):
+    if not picked and (intent_types or extra_tags) and not profile_domains:
         wanted = set(intent_types)
         extra = set(extra_tags)
         pool: list[CatalogOpportunity] = []
@@ -233,9 +268,9 @@ def match_opportunities_for_user(
                 pool.append(entry)
         if pool:
             pool_scored = _score_entries(text, pool, floor=floor, feedback_hints=feedback_hints)
-            picked = [e for _, e in pool_scored][:limit]
+            picked = [entry for _, entry in pool_scored][:limit]
 
-    if not picked and intent_types:
+    if not picked and intent_types and not profile_domains:
         wanted = set(intent_types)
         for entry in unique:
             if entry.id in (feedback_hints.user_negative_ids if feedback_hints else set()):
@@ -245,6 +280,46 @@ def match_opportunities_for_user(
                 if len(picked) >= limit:
                     break
 
+    return picked, categories
+
+
+def match_opportunities_for_user(
+    interest_query: str,
+    items: list[CatalogOpportunity],
+    *,
+    limit: int = 12,
+    min_score: float | None = None,
+    feedback_hints: FeedbackHints | None = None,
+) -> tuple[list[dict], list[str]]:
+    picked, categories = pick_opportunities_for_user(
+        interest_query,
+        items,
+        limit=limit,
+        min_score=min_score,
+        feedback_hints=feedback_hints,
+    )
+    return [serialize_opportunity(entry) for entry in picked], categories
+
+
+async def match_opportunities_for_user_async(
+    interest_query: str,
+    items: list[CatalogOpportunity],
+    *,
+    limit: int = 12,
+    min_score: float | None = None,
+    feedback_hints: FeedbackHints | None = None,
+) -> tuple[list[dict], list[str]]:
+    picked, categories = pick_opportunities_for_user(
+        interest_query,
+        items,
+        limit=max(limit * 3, limit),
+        min_score=min_score,
+        feedback_hints=feedback_hints,
+    )
+    if picked:
+        from services.catalog_rerank import llm_rerank_catalog
+
+        picked = await llm_rerank_catalog(interest_query, picked, max_pick=limit)
     return [serialize_opportunity(entry) for entry in picked], categories
 
 

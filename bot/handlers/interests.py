@@ -92,9 +92,10 @@ async def process_interest(message: Message, state: FSMContext, session: AsyncSe
         session=session,
         telegram_id=message.from_user.id,
         username=message.from_user.username,
-        skip_llm=True,
+        skip_llm=not was_first_interest,
     )
-    schedule_interest_llm_refine(user.id, interest_text)
+    if not was_first_interest:
+        schedule_interest_llm_refine(user.id, interest_text)
     await track(
         session,
         INTEREST_SET,

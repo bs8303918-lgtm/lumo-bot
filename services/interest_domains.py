@@ -241,7 +241,11 @@ def suggest_unknown_domains(text: str, *, approved: list[str] | None = None) -> 
             continue
         if any(token in d or d in token for d in already):
             continue
-        # только латиница / neologism — реже ложные срабатывания на русские слова
+        if re.search(r"[а-яё]", token) and len(token) >= 5:
+            if token not in candidates:
+                candidates.append(token)
+            continue
+        # латиница / neologism — реже ложные срабатывания на короткие русские слова
         if not re.search(r"[a-z]", token):
             continue
         if token not in candidates:
