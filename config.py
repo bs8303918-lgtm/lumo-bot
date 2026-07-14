@@ -89,9 +89,9 @@ class Settings(BaseSettings):
     ai_search_daily_limit: int = 3
     subscription_reminder_interval_seconds: int = 3600
 
-    # Partner B2B (AI Startify) — subscriptions_enforced=false пока бот бесплатный
+    # Partner B2B (AI Startify) — true = AI только по подписке / trial
     partner_api_key: str = ""
-    subscriptions_enforced: bool = False
+    subscriptions_enforced: bool = True
     subscription_preview_enabled: bool = True
     startify_checkout_url: str = ""
     # Lumo → Startify: POST новых конкурсов после мониторинга (см. docs/STARTIFY_CATALOG_WEBHOOK.md)

@@ -36,6 +36,7 @@ CAMPAIGN_APPLY_CLICK = "campaign_apply_click"
 
 MAINTENANCE_NOTICE_SENT = "maintenance_notice_sent"
 COMMUNITY_INVITE_SENT = "community_invite_sent"
+PAID_MODE_NOTICE_SENT = "paid_mode_notice_sent"
 
 # Ошибки
 LLM_ERROR = "llm_error"
@@ -85,6 +86,8 @@ EVENT_LABELS: dict[str, str] = {
     CAMPAIGN_LINK_CLICK: "кампания: ссылка",
     CAMPAIGN_APPLY_CLICK: "кампания: форма заявки",
     MAINTENANCE_NOTICE_SENT: "техобслуживание: извинение",
+    COMMUNITY_INVITE_SENT: "приглашение в сообщество",
+    PAID_MODE_NOTICE_SENT: "объявление: платный режим",
     LLM_ERROR: "ошибка LLM",
     HANDLER_ERROR: "ошибка бота",
 }

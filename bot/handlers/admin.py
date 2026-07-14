@@ -31,6 +31,7 @@ from services.interest_stats import (
 )
 from services.maintenance_broadcast import send_maintenance_apology
 from services.community_broadcast import get_community_invite_stats, send_community_invite
+from services.paid_mode_broadcast import send_paid_mode_notice
 from services.promo_campaign import (
     format_campaign_message,
     format_campaign_stats_report,
@@ -756,6 +757,30 @@ async def cmd_community_invite(message: Message) -> None:
         parse_mode="HTML",
     )
     stats = await send_community_invite(force=force, dry_run=dry_run)
+    await message.answer(
+        f"{'🔍 Dry-run' if dry_run else '✅ Готово'}\n\n"
+        f"🎯 в очереди: {stats['target']}\n"
+        f"📤 отправлено: {stats['sent']}\n"
+        f"⏭ пропущено (уже слали): {stats['skipped']}\n"
+        f"🚫 недоступны: {stats['unreachable']}\n"
+        f"❌ ошибки: {stats['error']}",
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("paid_mode_notice"), AdminFilter())
+async def cmd_paid_mode_notice(message: Message) -> None:
+    """Разослать объявление о платном режиме всем пользователям."""
+    parts = (message.text or "").split()
+    force = "force" in [p.lower() for p in parts[1:]]
+    dry_run = "dry" in [p.lower() for p in parts[1:]]
+
+    await message.answer(
+        f"⏳ Рассылка «платный режим»"
+        f"{' · dry-run' if dry_run else ''}…",
+        parse_mode="HTML",
+    )
+    stats = await send_paid_mode_notice(force=force, dry_run=dry_run)
     await message.answer(
         f"{'🔍 Dry-run' if dry_run else '✅ Готово'}\n\n"
         f"🎯 в очереди: {stats['target']}\n"
