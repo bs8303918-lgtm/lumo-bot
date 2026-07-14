@@ -12,11 +12,11 @@ import { resolvePlans } from './utils/pricing';
 import { apiFetch, getTelegram, haptic, initTelegramApp } from './api';
 
 function ViewTabs({ active, onChange, isAdmin }) {
+  // Price is a separate Mini App entry (?view=pricing) — not mixed with bot features.
   const tabs = [
     { id: 'ai', label: 'AI-поиск', prefix: '✦' },
     { id: 'catalog', label: 'Каталог', prefix: null },
     { id: 'team', label: 'Команда', prefix: null },
-    { id: 'pricing', label: 'Price', prefix: null },
     { id: 'profile', label: 'Профиль', prefix: '●' },
   ];
   if (isAdmin) {
@@ -58,27 +58,30 @@ function ViewTabs({ active, onChange, isAdmin }) {
   );
 }
 
-function initialViewFromUrl() {
+function pricingOnlyFromUrl() {
   try {
     const params = new URLSearchParams(window.location.search);
+    if (params.get('only') === '1' || params.get('standalone') === '1') return true;
     const fromQuery = (params.get('view') || params.get('tab') || '').toLowerCase();
     const fromHash = (window.location.hash || '').replace(/^#\/?/, '').toLowerCase();
     const target = fromQuery || fromHash.split('?')[0];
-    if (target === 'pricing' || target === 'price') return 'pricing';
+    return target === 'pricing' || target === 'price';
   } catch {
-    /* ignore */
+    return false;
   }
-  return 'ai';
 }
 
 export default function App() {
-  const [view, setView] = useState(initialViewFromUrl);
+  const [pricingOnly] = useState(() => pricingOnlyFromUrl());
+  const [view, setView] = useState(() => (pricingOnlyFromUrl() ? 'pricing' : 'ai'));
   const [dark, setDark] = useState(() => localStorage.getItem('lumo-theme') === 'dark');
   const [selected, setSelected] = useState(null);
   const [meta, setMeta] = useState(null);
   const [profile, setProfile] = useState(null);
   const [plans, setPlans] = useState([]);
-  const [pricingNotice, setPricingNotice] = useState(null);
+  const [pricingNotice, setPricingNotice] = useState(() =>
+    pricingOnlyFromUrl() ? 'subscription' : null,
+  );
   const [authError, setAuthError] = useState(null);
   const inTelegram = Boolean(getTelegram()?.initData);
   const botUsername = meta?.botUsername || 'LumoAI1bot';
@@ -104,15 +107,25 @@ export default function App() {
     apiFetch('/lumo/subscription-plans')
       .then((data) => setPlans(data.plans || []))
       .catch(() => {});
-    apiFetch('/lumo/catalog-bootstrap?limit=20').catch(() => {});
+    if (!pricingOnly) {
+      apiFetch('/lumo/catalog-bootstrap?limit=20').catch(() => {});
+    }
     loadProfile();
-  }, [loadProfile]);
+  }, [loadProfile, pricingOnly]);
 
   const resolvedPlans = resolvePlans(plans);
 
-  const openPricing = useCallback((reason = 'manual') => {
-    setPricingNotice(reason === 'manual' ? null : reason);
-    setView('pricing');
+  const closeApp = useCallback(() => {
+    const tg = getTelegram();
+    if (tg?.close) tg.close();
+    else window.history.back();
+  }, []);
+
+  /** Upsell opens standalone Price page — no tabs / no bot features. */
+  const openPricing = useCallback(() => {
+    const origin = window.location.origin;
+    const path = window.location.pathname.replace(/\/$/, '') || '';
+    window.location.replace(`${origin}${path}?view=pricing&only=1`);
   }, []);
 
   useEffect(() => {
@@ -131,15 +144,16 @@ export default function App() {
     }
   }, [dark]);
 
+  // Lock pricing-only shell: never leave Price for AI/catalog/admin (incl. admin users).
+  useEffect(() => {
+    if (!pricingOnly) return;
+    setView('pricing');
+  }, [pricingOnly, view]);
+
   const openItem = (item) => {
+    if (pricingOnly) return;
     haptic('light');
     setSelected(item);
-  };
-
-  const closeApp = () => {
-    const tg = getTelegram();
-    if (tg?.close) tg.close();
-    else window.history.back();
   };
 
   return (
@@ -178,19 +192,26 @@ export default function App() {
               </button>
             </div>
           </div>
-          <ViewTabs
-            active={view}
-            onChange={(id) => {
-              if (id !== 'pricing') setPricingNotice(null);
-              setView(id);
-            }}
-            isAdmin={profile?.isAdmin}
-          />
+          {!pricingOnly && (
+            <ViewTabs
+              active={view === 'pricing' ? 'ai' : view}
+              onChange={(id) => {
+                setPricingNotice(null);
+                setView(id);
+              }}
+              isAdmin={profile?.isAdmin}
+            />
+          )}
+          {pricingOnly && (
+            <p className="pb-3 text-[12px]" style={{ color: 'var(--lumo-text-muted)' }}>
+              Только тарифы · без доступа к AI и каталогу
+            </p>
+          )}
         </div>
       </header>
 
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-5">
-        {authError && (
+        {authError && !pricingOnly && (
           <div className="mb-4 p-3 rounded-xl text-xs text-red-400 bg-red-500/10 border border-red-500/20">
             {authError}
             {!inTelegram && (
@@ -199,53 +220,54 @@ export default function App() {
           </div>
         )}
 
-        {view === 'ai' && (
-          <AiView
-            onOpenItem={openItem}
-            meta={meta}
-            profile={profile}
-            onProfileRefresh={loadProfile}
-            onOpenPriceList={openPricing}
-          />
-        )}
-        {view === 'catalog' && <CatalogView onOpenItem={openItem} />}
-        {view === 'team' && (
-          <TeamFinderView profile={profile} onProfileRefresh={loadProfile} />
-        )}
-        {view === 'pricing' && (
+        {pricingOnly ? (
           <PricingView
             meta={meta}
             profile={profile}
             plans={resolvedPlans}
-            needsSubscription={pricingNotice === 'subscription'}
-            limitNotice={pricingNotice === 'limit'}
-            onDismissLimit={() => {
-              setPricingNotice(null);
-              setView('catalog');
-            }}
+            needsSubscription
+            limitNotice={false}
+            standalone
+            onDismissLimit={closeApp}
           />
-        )}
-        {view === 'profile' && (
-          <ProfileView
-            meta={meta}
-            profile={profile}
-            plans={resolvedPlans}
-            onProfileRefresh={loadProfile}
-            onOpenPriceList={openPricing}
-          />
-        )}
-        {view === 'admin' && profile?.isAdmin && (
-          <AdminView onExit={() => setView('ai')} />
-        )}
-        {view === 'admin' && !profile?.isAdmin && (
-          <div className="lumo-card p-4 text-center">
-            <p className="text-[14px] mb-2">Нет доступа к админке</p>
-            <p className="text-[12px]" style={{ color: 'var(--lumo-text-muted)' }}>
-              {profile?.telegramId
-                ? `Твой ID: ${profile.telegramId}. Проверь TELEGRAM_ADMIN_CHAT_ID в .env`
-                : 'Загрузка профиля… /whoami в боте'}
-            </p>
-          </div>
+        ) : (
+          <>
+            {view === 'ai' && (
+              <AiView
+                onOpenItem={openItem}
+                meta={meta}
+                profile={profile}
+                onProfileRefresh={loadProfile}
+                onOpenPriceList={openPricing}
+              />
+            )}
+            {view === 'catalog' && <CatalogView onOpenItem={openItem} />}
+            {view === 'team' && (
+              <TeamFinderView profile={profile} onProfileRefresh={loadProfile} />
+            )}
+            {view === 'profile' && (
+              <ProfileView
+                meta={meta}
+                profile={profile}
+                plans={resolvedPlans}
+                onProfileRefresh={loadProfile}
+                onOpenPriceList={openPricing}
+              />
+            )}
+            {view === 'admin' && profile?.isAdmin && (
+              <AdminView onExit={() => setView('ai')} />
+            )}
+            {view === 'admin' && !profile?.isAdmin && (
+              <div className="lumo-card p-4 text-center">
+                <p className="text-[14px] mb-2">Нет доступа к админке</p>
+                <p className="text-[12px]" style={{ color: 'var(--lumo-text-muted)' }}>
+                  {profile?.telegramId
+                    ? `Твой ID: ${profile.telegramId}. Проверь TELEGRAM_ADMIN_CHAT_ID в .env`
+                    : 'Загрузка профиля… /whoami в боте'}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </main>
 
@@ -255,7 +277,7 @@ export default function App() {
         </p>
       </footer>
 
-      <DetailModal item={selected} onClose={() => setSelected(null)} />
+      {!pricingOnly && <DetailModal item={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

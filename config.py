@@ -257,7 +257,7 @@ class Settings(BaseSettings):
         base = self.telegram_webapp_base_url
         if not base:
             return ""
-        return f"{base.rstrip('/')}?view=pricing"
+        return f"{base.rstrip('/')}?view=pricing&only=1"
 
     @field_validator("telegram_api_id", mode="before")
     @classmethod

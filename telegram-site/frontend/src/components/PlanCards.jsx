@@ -142,7 +142,15 @@ function KaspiPaymentBlock({ phone, selectedPlan, supportContact }) {
   );
 }
 
-export function PricingFooter({ meta, profile, onClose, limitNotice = false, needsSubscription = false, selectedPlan }) {
+export function PricingFooter({
+  meta,
+  profile,
+  onClose,
+  limitNotice = false,
+  needsSubscription = false,
+  standalone = false,
+  selectedPlan,
+}) {
   const checkout = meta?.startifyCheckoutUrl;
   const enforced = profile?.subscription?.enforced;
   const kaspiPhone = meta?.kaspiPaymentPhone || KASPI_PAYMENT_PHONE;
@@ -165,21 +173,21 @@ export function PricingFooter({ meta, profile, onClose, limitNotice = false, nee
         />
       )}
 
-      {(needsSubscription || limitNotice) && onClose && (
+      {onClose && (
         <button
           type="button"
           onClick={onClose}
           className="w-full py-3 rounded-2xl text-[14px] font-semibold"
           style={{ background: 'var(--lumo-surface-muted)', color: 'var(--lumo-text)' }}
         >
-          {needsSubscription || limitNotice ? 'Перейти в каталог' : 'Закрыть'}
+          {standalone ? 'Закрыть' : needsSubscription || limitNotice ? 'Перейти в каталог' : 'Закрыть'}
         </button>
       )}
     </div>
   );
 }
 
-export function PricingHeader({ limitNotice, needsSubscription = false, meta }) {
+export function PricingHeader({ limitNotice, needsSubscription = false, standalone = false, meta }) {
   const contact = meta?.supportContact || '@taton4i';
   return (
     <header className="mb-5">
@@ -187,10 +195,10 @@ export function PricingHeader({ limitNotice, needsSubscription = false, meta }) 
         <Sparkles size={18} style={{ color: 'var(--lumo-accent)' }} />
         <h1 className="text-[22px] font-bold leading-tight">Тарифы</h1>
       </div>
-      {needsSubscription ? (
+      {standalone || needsSubscription ? (
         <div className="space-y-2">
           <p className="text-[13px] leading-relaxed" style={{ color: '#f87171' }}>
-            AI-поиск доступен с подпиской.
+            AI-поиск и полный доступ — только с подпиской.
           </p>
           <div
             className="rounded-2xl px-4 py-3 text-[13px]"
