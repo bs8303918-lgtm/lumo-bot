@@ -16,6 +16,11 @@ def test_vercel_webapp_accepted():
     assert safe_webapp_url(url) == url
 
 
+def test_vercel_pricing_query_accepted():
+    url = "https://lumo-bot.vercel.app?view=pricing"
+    assert safe_webapp_url(url) == url
+
+
 def test_vercel_pricing_hash_accepted():
     url = "https://lumo-bot.vercel.app/#pricing"
     assert safe_webapp_url(url) == url

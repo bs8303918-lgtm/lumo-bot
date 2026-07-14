@@ -253,11 +253,11 @@ class Settings(BaseSettings):
 
     @property
     def telegram_webapp_pricing_url(self) -> str:
-        """Mini App URL that opens the Price tab (#pricing)."""
+        """Mini App URL that opens the Price tab (query — hash often breaks WebApp buttons)."""
         base = self.telegram_webapp_base_url
         if not base:
             return ""
-        return f"{base.rstrip('/')}/#pricing"
+        return f"{base.rstrip('/')}?view=pricing"
 
     @field_validator("telegram_api_id", mode="before")
     @classmethod
