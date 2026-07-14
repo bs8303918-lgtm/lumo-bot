@@ -348,7 +348,7 @@ def _subscription_hero_offer() -> str:
 def get_startify_trial_welcome(expires_at) -> str:
     return (
         "🎉 <b>7 дней полного доступа — старт!</b>\n\n"
-        "Как streak в Duolingo: каждый день Lumo ищет гранты и стажировки под тебя.\n\n"
+        "Каждый день Lumo ищет гранты и стажировки под твой профиль.\n\n"
         "Сейчас у тебя:\n"
         "• AI-поиск <b>без лимита</b>\n"
         "• умные подборки в бот\n"
@@ -361,7 +361,7 @@ def get_startify_trial_welcome(expires_at) -> str:
 
 def get_trial_day2_message(expires_at) -> str:
     return (
-        "🔥 <b>День 2 trial — не сбивай streak!</b>\n\n"
+        "🔥 <b>День 2 trial</b>\n\n"
         "Вчера ты включил Lumo на полную. Сегодня проверь:\n"
         "• есть ли новые гранты в каталоге\n"
         "• обновлён ли профиль /set_interest\n\n"
@@ -373,7 +373,7 @@ def get_trial_day2_message(expires_at) -> str:
 def get_trial_halftime_message(expires_at) -> str:
     return (
         "⚡ <b>Половина trial позади</b>\n\n"
-        "Duolingo напоминает не бросать streak — мы напоминаем не пропустить дедлайны.\n\n"
+        "Пока доступ полный — не пропусти дедлайны по грантам и конкурсам.\n\n"
         "Пока AI без лимита — прогони пару запросов в Mini App и добавь каналы /add_channel.\n\n"
         f"Осталось до <b>{_format_subscription_expires(expires_at)}</b>.\n\n"
         f"{_subscription_hero_offer()}\n\n"
@@ -407,7 +407,7 @@ def get_trial_remind_1d(expires_at) -> str:
 def get_trial_expired_message() -> str:
     return (
         "🔒 <b>Trial закончился</b>\n\n"
-        "Streak сброшен — но каталог и уведомления остались.\n\n"
+        "Полный доступ выключился — каталог и уведомления остались.\n\n"
         "Сейчас:\n"
         "• <b>3 AI-запроса</b> в день\n"
         "• подборки из каналов работают\n\n"
@@ -452,7 +452,7 @@ def get_trial_winback_14d() -> str:
 def get_freemium_limit_nudge() -> str:
     return (
         "🛑 <b>Лимит AI на сегодня</b>\n\n"
-        "3 запроса закончились — как лимит жизней в игре.\n\n"
+        "3 запроса закончились.\n\n"
         "Завтра снова 3 попытки, или подключи безлимит:\n"
         f"{_subscription_hero_offer()}\n\n"
         f"{_subscription_checkout_hint()}"

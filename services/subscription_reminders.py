@@ -1,4 +1,4 @@
-"""Push-напоминания по trial / истечению тарифа (Duolingo-style upsell)."""
+"""Push-напоминания по trial / истечению тарифа."""
 
 from __future__ import annotations
 

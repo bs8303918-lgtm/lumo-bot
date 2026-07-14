@@ -18,13 +18,13 @@
 | `sf_ref_home_trial_7d` | ✅ 7 дней |
 | `sf_ref_pricing_plan_6m` | ❌ (ожидается оплата 6m) |
 
-## Push-расписание (Duolingo-style)
+## Push-расписание (напоминания по trial)
 
 Worker: `subscription_reminders` — проверка **каждый час** (`SUBSCRIPTION_REMINDER_INTERVAL_SECONDS=3600`).
 
 | Ключ | Когда | Смысл |
 |------|-------|--------|
-| `trial_day2` | ~2-й день trial | Streak, настрой профиль |
+| `trial_day2` | ~2-й день trial | Настрой профиль, проверь каталог |
 | `trial_halftime` | середина trial | Не бросай, тарифы |
 | `remind_3d` | за ~3 дня до конца | Скоро 3 AI/день |
 | `remind_1d` | за ~1 день | Завтра конец |
