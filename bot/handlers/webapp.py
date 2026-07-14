@@ -33,10 +33,9 @@ async def cmd_app(message: Message) -> None:
 
     await message.answer(
         "📱 Mini App не настроен.\n\n"
-        "1. Запусти бота: <code>python main.py</code>\n"
-        "2. Туннель: <code>.\\scripts\\setup_tunnel.ps1</code>\n"
-        "3. В .env: <code>PUBLIC_BASE_URL=https://....trycloudflare.com</code>\n"
-        "4. Перезапусти бота",
+        "Prod: задай <code>TELEGRAM_WEBAPP_URL=https://lumo-bot.vercel.app</code>\n"
+        "и <code>PUBLIC_BASE_URL</code> = Railway API URL, затем перезапусти бота.\n\n"
+        "Локально: туннель + <code>PUBLIC_BASE_URL</code> HTTPS, либо сразу Vercel URL.",
         parse_mode="HTML",
         reply_markup=main_menu_keyboard(),
     )
@@ -48,7 +47,9 @@ async def cmd_link(message: Message) -> None:
     settings = get_settings()
     url = settings.resolved_webapp_url
     if not url:
-        await message.answer("URL не задан. Добавь PUBLIC_BASE_URL в .env и перезапусти бота.")
+        await message.answer(
+            "URL не задан. Добавь TELEGRAM_WEBAPP_URL (Vercel) в .env и перезапусти бота."
+        )
         return
     plain = safe_button_url(url.split("?", 1)[0])
     if not plain:

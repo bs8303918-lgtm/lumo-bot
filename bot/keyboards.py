@@ -41,13 +41,16 @@ def subscription_upsell_keyboard() -> InlineKeyboardMarkup:
     checkout = safe_button_url(settings.startify_checkout_url.strip())
     if checkout:
         rows.append([InlineKeyboardButton(text="💳 Оплатить на сайте", url=checkout)])
-    webapp = safe_webapp_url(settings.telegram_webapp_base_url)
-    if webapp:
+    # Prefer #pricing deep link; fall back to Mini App root.
+    pricing = safe_webapp_url(settings.telegram_webapp_pricing_url) or safe_webapp_url(
+        settings.telegram_webapp_base_url
+    )
+    if pricing:
         rows.append(
             [
                 InlineKeyboardButton(
                     text="📱 Тарифы Price",
-                    web_app=WebAppInfo(url=webapp),
+                    web_app=WebAppInfo(url=pricing),
                 )
             ]
         )

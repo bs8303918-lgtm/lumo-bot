@@ -251,6 +251,14 @@ class Settings(BaseSettings):
             return ""
         return f"{base}/?v={webapp_cache_bust()}"
 
+    @property
+    def telegram_webapp_pricing_url(self) -> str:
+        """Mini App URL that opens the Price tab (#pricing)."""
+        base = self.telegram_webapp_base_url
+        if not base:
+            return ""
+        return f"{base.rstrip('/')}/#pricing"
+
     @field_validator("telegram_api_id", mode="before")
     @classmethod
     def empty_api_id_to_zero(cls, value: Any) -> Any:

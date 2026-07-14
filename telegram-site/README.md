@@ -16,34 +16,28 @@ cd C:\Users\User\Desktop\lumo-bot
 
 ## Кнопка **Open** в Telegram
 
-Telegram требует **HTTPS**. Локально используй туннель:
+**Прод:** Mini App на Vercel — в `.env` / Railway:
 
-**1. Запусти бота** (см. выше)
+```env
+PUBLIC_BASE_URL=https://lumo-bot-production-9903.up.railway.app
+TELEGRAM_WEBAPP_URL=https://lumo-bot.vercel.app
+```
 
-**2. Туннель** (отдельное окно, один раз):
+Кнопка **Price** открывает `https://lumo-bot.vercel.app/#pricing`.
+
+Telegram требует **HTTPS**. Для локальной отладки без Vercel — туннель:
 
 ```powershell
-# cloudflared (бесплатно)
 cloudflared tunnel --url http://127.0.0.1:8000
 ```
 
-или ngrok:
-
-```powershell
-ngrok http 8000
-```
-
-**3. В `.env` укажи URL туннеля:**
-
 ```env
 PUBLIC_BASE_URL=https://xxxx.trycloudflare.com
+# лучше явно: TELEGRAM_WEBAPP_URL=https://xxxx.trycloudflare.com/app/
 MINI_APP_MENU_TEXT=Open
 ```
 
-**4. Перезапусти бота** — слева от поля ввода появится синяя кнопка **Open**.
-
-> Можно вместо `PUBLIC_BASE_URL` задать полный путь:  
-> `TELEGRAM_WEBAPP_URL=https://xxxx.trycloudflare.com/app/`
+Перезапусти бота — слева от поля ввода появится синяя кнопка **Open**.
 
 ---
 

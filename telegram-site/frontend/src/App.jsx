@@ -58,8 +58,21 @@ function ViewTabs({ active, onChange, isAdmin }) {
   );
 }
 
+function initialViewFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = (params.get('view') || params.get('tab') || '').toLowerCase();
+    const fromHash = (window.location.hash || '').replace(/^#\/?/, '').toLowerCase();
+    const target = fromQuery || fromHash.split('?')[0];
+    if (target === 'pricing' || target === 'price') return 'pricing';
+  } catch {
+    /* ignore */
+  }
+  return 'ai';
+}
+
 export default function App() {
-  const [view, setView] = useState('ai');
+  const [view, setView] = useState(initialViewFromUrl);
   const [dark, setDark] = useState(() => localStorage.getItem('lumo-theme') === 'dark');
   const [selected, setSelected] = useState(null);
   const [meta, setMeta] = useState(null);

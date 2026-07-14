@@ -19,9 +19,9 @@ Telegram Open →  Vercel (React Mini App)
 LUMO_MODE=full
 SERVE_MINI_APP=false
 AUTO_BUILD_WEBAPP=false
-PUBLIC_BASE_URL=https://lumo-bot-production.up.railway.app
-TELEGRAM_WEBAPP_URL=https://lumo-mini-app.vercel.app
-API_CORS_ORIGINS=https://lumo-mini-app.vercel.app,https://lumo-mini-app-*.vercel.app
+PUBLIC_BASE_URL=https://lumo-bot-production-9903.up.railway.app
+TELEGRAM_WEBAPP_URL=https://lumo-bot.vercel.app
+API_CORS_ORIGINS=https://lumo-bot.vercel.app,https://lumo-bot-*.vercel.app
 ```
 
 - `PUBLIC_BASE_URL` — URL **Railway** (API), не Vercel  
@@ -48,13 +48,13 @@ API_CORS_ORIGINS=https://lumo-mini-app.vercel.app,https://lumo-mini-app-*.vercel
 | `VITE_API_URL` | `https://ТВОЙ-RAILWAY.up.railway.app` |
 | `VITE_BASE_PATH` | `/` |
 
-Deploy → получишь `https://lumo-xxx.vercel.app`
+Deploy → получишь `https://lumo-bot.vercel.app` (или свой alias)
 
 ### Обнови Railway
 
 ```env
-TELEGRAM_WEBAPP_URL=https://lumo-xxx.vercel.app
-API_CORS_ORIGINS=https://lumo-xxx.vercel.app
+TELEGRAM_WEBAPP_URL=https://lumo-bot.vercel.app
+API_CORS_ORIGINS=https://lumo-bot.vercel.app
 ```
 
 Redeploy Railway (чтобы CORS и кнопка Open обновились).
@@ -65,7 +65,7 @@ Redeploy Railway (чтобы CORS и кнопка Open обновились).
 
 1. [@BotFather](https://t.me/BotFather) → `/mybots` → твой бот  
 2. **Bot Settings → Menu Button / Web App**  
-3. Добавь домен Vercel: `lumo-xxx.vercel.app`  
+3. Добавь домен Vercel: `lumo-bot.vercel.app`  
 
 Без этого Telegram может блокировать открытие Mini App.
 
