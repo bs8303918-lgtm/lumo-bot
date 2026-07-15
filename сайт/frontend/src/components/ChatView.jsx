@@ -72,10 +72,6 @@ export default function ChatView({ onOpenItem, onOpenPricing, onNeedsAuth }) {
         <div className="app-blob app-blob-right" aria-hidden />
 
         <div className="relative w-full max-w-3xl">
-          <div className="rounded-full bg-neutral-900 text-white text-center text-sm px-5 py-2.5 mb-8">
-            ИИ подберёт гранты, хакатоны и стажировки под твой запрос
-          </div>
-
           <div className="text-center mb-8">
             <h1 className="text-[1.75rem] md:text-[2.25rem] font-bold text-neutral-900 tracking-tight mb-3">
               Какой конкурс, грант или стажировку ищешь?
