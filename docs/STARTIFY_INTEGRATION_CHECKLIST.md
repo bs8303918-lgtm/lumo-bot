@@ -94,6 +94,16 @@ Retries на 5xx: 0.5s → 1s → 2s. На 4xx — без ретрая.
 
 ---
 
+## Автоматическая отправка (без ручного /push_startify)
+
+1. **Сразу** — когда мониторинг + LLM добавляют новый конкурс → `opportunity.created`
+2. **При снятии** — expired / дубликаты → `opportunity.deactivated`
+3. **Каждые 6 часов** — полный бэкап-синк активных → `opportunity.updated`
+
+Нужны Railway Variables (`PARTNER_API_KEY` + `STARTIFY_CATALOG_WEBHOOK_URL`) и рабочий webhook у Startify (не 404).
+
+---
+
 ## Чеклист
 
 1. [ ] Railway: `PARTNER_API_KEY` + `STARTIFY_CATALOG_WEBHOOK_URL` (prod)

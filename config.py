@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     # Lumo → Startify: POST новых конкурсов после мониторинга (см. docs/STARTIFY_CATALOG_WEBHOOK.md)
     startify_catalog_webhook_url: str = ""
     startify_catalog_push_enabled: bool = True
+    # Периодический бэкап-синк всех активных (сек). 0 = выкл. По умолчанию каждые 6 часов.
+    startify_catalog_sync_interval_seconds: int = 21600
     kaspi_payment_phone: str = "+7 775 499 8313"
 
     # Training data (для будущего fine-tuning)

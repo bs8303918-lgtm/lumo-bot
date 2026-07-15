@@ -253,3 +253,38 @@ async def push_all_active_catalog(
             failed += 1
         await asyncio.sleep(0.05)
     return {"pushed": pushed, "failed": failed, "skipped": 0, "total": len(entries)}
+
+
+async def run_startify_catalog_sync_forever(interval_seconds: int | None = None) -> None:
+    """Periodic full sync so Startify stays up to date without manual /push_startify."""
+    settings = get_settings()
+    interval = (
+        interval_seconds
+        if interval_seconds is not None
+        else int(settings.startify_catalog_sync_interval_seconds)
+    )
+    if interval <= 0:
+        logger.info("Startify catalog periodic sync disabled (interval=%s)", interval)
+        return
+
+    # First run shortly after boot — catch anything missed while webhook was down.
+    await asyncio.sleep(90)
+    while True:
+        try:
+            if not is_push_configured():
+                logger.warning(
+                    "Startify auto-sync skipped: set PARTNER_API_KEY + STARTIFY_CATALOG_WEBHOOK_URL"
+                )
+            else:
+                stats = await push_all_active_catalog(event=EVENT_UPDATED)
+                logger.info(
+                    "Startify catalog auto-sync: total=%s pushed=%s failed=%s",
+                    stats["total"],
+                    stats["pushed"],
+                    stats["failed"],
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Startify catalog auto-sync error: %s", exc)
+        await asyncio.sleep(interval)

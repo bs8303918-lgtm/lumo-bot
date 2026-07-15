@@ -187,6 +187,12 @@ async def run_subscription_reminders() -> None:
     await run_subscription_reminders_forever()
 
 
+async def run_startify_catalog_sync() -> None:
+    from services.startify_catalog_push import run_startify_catalog_sync_forever
+
+    await run_startify_catalog_sync_forever()
+
+
 async def _on_monitor_critical(exc: Exception) -> None:
     from services.admin_notify import notify_admin
 
@@ -347,6 +353,7 @@ async def main() -> None:
                     _run_after_boot(boot_ready, run_monitor, name="monitor"),
                     _run_after_boot(boot_ready, run_llm_processor, name="llm"),
                     _run_after_boot(boot_ready, run_subscription_reminders, name="subscription_reminders"),
+                    _run_after_boot(boot_ready, run_startify_catalog_sync, name="startify_catalog_sync"),
                     _run_posted_at_after_boot(boot_ready),
                 ]
             )
