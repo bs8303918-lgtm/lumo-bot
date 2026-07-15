@@ -6,7 +6,7 @@ export default function LandingLanguageSwitcher() {
 
   return (
     <div
-      className="inline-flex items-center rounded-full border border-zinc-700 bg-zinc-900/80 p-0.5 text-xs font-semibold"
+      className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 p-0.5 text-xs font-semibold text-neutral-500"
       role="group"
       aria-label="Language"
     >
@@ -18,7 +18,7 @@ export default function LandingLanguageSwitcher() {
             type="button"
             onClick={() => setLocale(id)}
             className={`px-2.5 py-1 rounded-full transition-colors ${
-              active ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+              active ? 'bg-white text-neutral-900 shadow-sm' : 'hover:text-neutral-900'
             }`}
             aria-pressed={active}
           >

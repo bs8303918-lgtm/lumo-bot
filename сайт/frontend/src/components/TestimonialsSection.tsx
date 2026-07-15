@@ -39,7 +39,7 @@ export function TestimonialsSection() {
   const { t } = useLandingLanguage();
 
   return (
-    <section id="testimonials" className="px-5 py-24 md:py-32 border-t border-zinc-900 relative">
+    <section id="testimonials" className="px-5 py-24 md:py-32 border-t border-neutral-200 relative bg-white">
       <div className="container z-10 mx-auto max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -49,24 +49,24 @@ export function TestimonialsSection() {
           className="flex flex-col items-center justify-center max-w-[540px] mx-auto"
         >
           <div className="flex justify-center">
-            <div className="border border-zinc-800 py-1 px-4 rounded-lg text-sm text-zinc-400">
+            <div className="border border-neutral-200 py-1 px-4 rounded-lg text-sm text-neutral-500 bg-neutral-50">
               {t.testimonials.badge}
             </div>
           </div>
 
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mt-5 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-neutral-900 mt-5 text-center">
             {t.testimonials.title}
           </h2>
-          <p className="text-center mt-5 text-zinc-400">{t.testimonials.subtitle}</p>
+          <p className="text-center mt-5 text-neutral-500">{t.testimonials.subtitle}</p>
         </motion.div>
 
         <div className="flex justify-center gap-6 mt-10 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)] max-h-[520px] overflow-hidden">
-          <TestimonialsColumn testimonials={leftColumn} duration={18} variant="dark" />
+          <TestimonialsColumn testimonials={leftColumn} duration={18} variant="light" />
           <TestimonialsColumn
             testimonials={rightColumn}
             className="hidden sm:block"
             duration={22}
-            variant="dark"
+            variant="light"
           />
         </div>
       </div>

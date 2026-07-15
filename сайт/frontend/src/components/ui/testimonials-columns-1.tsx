@@ -11,11 +11,16 @@ export interface Testimonial {
   image?: string;
 }
 
-function TestimonialAvatar({ name }: { name?: string }) {
+function TestimonialAvatar({ name, isDark }: { name?: string; isDark?: boolean }) {
   const initial = name?.trim()?.charAt(0)?.toUpperCase();
   return (
     <div
-      className="h-10 w-10 rounded-full shrink-0 flex items-center justify-center bg-zinc-800 border border-zinc-700 text-zinc-300"
+      className={cn(
+        'h-10 w-10 rounded-full shrink-0 flex items-center justify-center border',
+        isDark
+          ? 'bg-zinc-800 border-zinc-700 text-zinc-300'
+          : 'bg-neutral-100 border-neutral-200 text-neutral-700',
+      )}
       aria-hidden
     >
       {initial ? (
@@ -56,13 +61,13 @@ export function TestimonialsColumn(props: {
                   'p-8 rounded-3xl border max-w-xs w-full',
                   isDark
                     ? 'border-zinc-800 bg-zinc-900/70 shadow-lg shadow-sky-500/5 text-zinc-200'
-                    : 'border-border bg-card shadow-lg shadow-primary/10',
+                    : 'border-neutral-200 bg-white shadow-md shadow-black/[0.04] text-neutral-800',
                 )}
               >
                 <div className="text-sm leading-relaxed">{text}</div>
                 {(name || role) && (
                   <div className="flex items-center gap-2 mt-5">
-                    <TestimonialAvatar name={name} />
+                    <TestimonialAvatar name={name} isDark={isDark} />
                     <div className="flex flex-col min-w-0">
                       {name && (
                         <div className="font-medium tracking-tight leading-5 truncate">{name}</div>

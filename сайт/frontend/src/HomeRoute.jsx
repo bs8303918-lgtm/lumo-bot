@@ -29,7 +29,7 @@ export default function HomeRoute() {
   if (target === 'app') return <Navigate to="/app" replace />;
   if (target === 'landing') return <Landing />;
   return (
-    <div className="min-h-screen bg-[#07080c] flex items-center justify-center text-zinc-500 text-sm">
+    <div className="min-h-screen bg-white flex items-center justify-center text-neutral-400 text-sm">
       Загрузка…
     </div>
   );

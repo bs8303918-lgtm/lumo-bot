@@ -83,7 +83,7 @@ export function Pricing({
               plan.isPopular
                 ? isDark
                   ? 'border-sky-500/40 shadow-[0_0_40px_rgba(56,189,248,0.12)]'
-                  : 'border-primary shadow-[0_0_40px_rgba(37,99,235,0.12)]'
+                  : 'border-neutral-900 shadow-lg shadow-black/10'
                 : isDark
                   ? 'border-zinc-800 hover:border-zinc-700'
                   : 'border-border hover:border-primary/30',
@@ -92,7 +92,7 @@ export function Pricing({
             )}
           >
             {plan.isPopular && (
-              <div className="absolute top-0 right-0 bg-gradient-to-r from-sky-400 to-blue-600 py-1 px-2.5 rounded-bl-xl rounded-tr-2xl flex items-center gap-1">
+              <div className="absolute top-0 right-0 bg-neutral-900 py-1 px-2.5 rounded-bl-xl rounded-tr-2xl flex items-center gap-1">
                 <Star className="text-white h-3.5 w-3.5 fill-current" />
                 <span className="text-white text-xs font-semibold">Популярный</span>
               </div>
@@ -146,7 +146,7 @@ export function Pricing({
                     <Check
                       className={cn(
                         'h-4 w-4 mt-0.5 shrink-0',
-                        isDark ? 'text-sky-400' : 'text-primary',
+                        isDark ? 'text-sky-400' : 'text-neutral-900',
                       )}
                     />
                     <span className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-foreground/80')}>
@@ -165,7 +165,7 @@ export function Pricing({
                 className={cn(
                   'inline-flex items-center justify-center w-full py-3.5 rounded-full font-semibold text-base transition-all',
                   plan.isPopular
-                    ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white hover:from-cyan-300 hover:to-blue-500 shadow-[0_0_24px_rgba(56,189,248,0.2)]'
+                    ? 'bg-neutral-900 text-white hover:bg-neutral-800 shadow-md shadow-black/10'
                     : isDark
                       ? 'border border-zinc-700 bg-zinc-800/90 text-white hover:bg-zinc-700 hover:border-zinc-600'
                       : 'border border-border bg-muted text-foreground hover:bg-accent',
