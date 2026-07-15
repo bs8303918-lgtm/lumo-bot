@@ -164,6 +164,32 @@ body {
   );
 }
 
+.app-page-bg {
+  background-color: #ffffff;
+}
+
+.app-blob {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.app-blob-left {
+  left: -80px;
+  top: 20%;
+  background: rgba(167, 139, 250, 0.35);
+}
+
+.app-blob-right {
+  right: -80px;
+  top: 35%;
+  background: rgba(196, 181, 253, 0.3);
+}
+
 .contests-fade {
   mask-image: linear-gradient(to bottom, black 30%, transparent 85%);
   -webkit-mask-image: linear-gradient(to bottom, black 30%, transparent 85%);
