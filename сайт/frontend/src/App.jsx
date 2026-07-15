@@ -5,8 +5,11 @@ import {
   apiFetch,
   authDisplayName,
   clearAuth,
+  getActiveRoomStudentId,
+  getActiveRoomStudentName,
   initTelegramApp,
   isAuthenticated,
+  setActiveRoom,
   syncSession,
 } from './api.js';
 import AppSidebar from './components/AppSidebar.jsx';
@@ -17,12 +20,21 @@ import OpportunityCard from './components/OpportunityCard.jsx';
 import CatalogFilters, { DEFAULT_CATALOG_FILTERS } from './components/CatalogFilters.jsx';
 import TractionView from './components/TractionView.jsx';
 import TeamFinderView from './components/TeamFinderView.jsx';
+import MentorWorkspaceView from './components/MentorWorkspaceView.jsx';
+import SharedRoomStudentPanel from './components/SharedRoomStudentPanel.jsx';
 import { buildCatalogQuery, CATALOG_PRIZE_OPTIONS, CATALOG_SORT_OPTIONS } from './constants/catalogFilters.js';
 import { LUMO_PRICING_PLANS, Pricing } from '@/components/ui/pricing';
 
 const CATALOG_PAGE_SIZE = 24;
+const INTERFACE_MODE_KEY = 'lumo-interface-mode';
 
-function CatalogPanel({ onOpenItem, authed, onNeedsAuth }) {
+function readInterfaceMode(isAdmin) {
+  if (!isAdmin) return 'user';
+  const stored = localStorage.getItem(INTERFACE_MODE_KEY);
+  return stored === 'mentor' ? 'mentor' : 'user';
+}
+
+function CatalogPanel({ onOpenItem, authed, onNeedsAuth, roomStudentId = null }) {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +49,7 @@ function CatalogPanel({ onOpenItem, authed, onNeedsAuth }) {
       setCategories([]);
       return;
     }
-    apiFetch('/lumo/categories')
+    apiFetch('/lumo/categories', { roomStudentId })
       .then((data) => setCategories(Array.isArray(data) ? data : []))
       .catch(() => setCategories([]));
   }, [authed]);
@@ -60,7 +72,7 @@ function CatalogPanel({ onOpenItem, authed, onNeedsAuth }) {
         pageSize: CATALOG_PAGE_SIZE,
       });
       try {
-        const data = await apiFetch(`/lumo/opportunities?${qs}`);
+        const data = await apiFetch(`/lumo/opportunities?${qs}`, { roomStudentId });
         setItems(data.items ?? []);
         setTotal(data.total ?? 0);
       } catch (err) {
@@ -73,7 +85,7 @@ function CatalogPanel({ onOpenItem, authed, onNeedsAuth }) {
       }
     }, 200);
     return () => clearTimeout(timer);
-  }, [query, appliedFilters, authed, onNeedsAuth]);
+  }, [query, appliedFilters, authed, onNeedsAuth, roomStudentId]);
 
   const applyFilters = () => setAppliedFilters({ ...draftFilters });
 
@@ -193,6 +205,7 @@ export default function LumoApp() {
   const signupMode = searchParams.get('signup') === '1';
 
   const [view, setView] = useState('chat');
+  const [interfaceMode, setInterfaceMode] = useState('user');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem('lumo-theme') === 'dark');
   const [selected, setSelected] = useState(null);
@@ -259,9 +272,59 @@ export default function LumoApp() {
   }, [authed, signupMode, navigate]);
 
   const openItem = async (item) => {
-    const detail = await apiFetch(`/lumo/opportunities/${item.id}`);
+    const roomStudentId =
+      interfaceMode === 'mentor' ? getActiveRoomStudentId() : null;
+    const detail = await apiFetch(`/lumo/opportunities/${item.id}`, {
+      roomStudentId,
+    });
     setSelected(detail);
   };
+
+  useEffect(() => {
+    if (!profile) return;
+    const modeFromUrl = searchParams.get('mode');
+    const viewFromUrl = searchParams.get('view');
+    const roomFromUrl = searchParams.get('room');
+
+    if (roomFromUrl) {
+      const studentId = Number(roomFromUrl);
+      if (Number.isFinite(studentId) && studentId > 0) {
+        setActiveRoom(studentId, null);
+      }
+    }
+
+    if (profile.role === 'mentor') {
+      setInterfaceMode('mentor');
+      setView(viewFromUrl === 'workspace' ? 'workspace' : 'workspace');
+      localStorage.setItem(INTERFACE_MODE_KEY, 'mentor');
+      return;
+    }
+
+    if (profile.isAdmin && modeFromUrl === 'mentor') {
+      setInterfaceMode('mentor');
+      setView('workspace');
+      localStorage.setItem(INTERFACE_MODE_KEY, 'mentor');
+      return;
+    }
+    const mode = readInterfaceMode(profile.isAdmin);
+    setInterfaceMode(mode);
+    if (mode === 'mentor' && profile.isAdmin) {
+      setView((current) => (current === 'chat' ? 'workspace' : current));
+    }
+    if (viewFromUrl === 'workspace' && profile.isAdmin) {
+      setView('workspace');
+    }
+  }, [profile, searchParams]);
+
+  const handleInterfaceModeChange = useCallback((mode) => {
+    setInterfaceMode(mode);
+    localStorage.setItem(INTERFACE_MODE_KEY, mode);
+    if (mode === 'mentor') {
+      setView('workspace');
+    } else if (view === 'workspace') {
+      setView('chat');
+    }
+  }, [view]);
 
   const newChat = () => {
     setView('chat');
@@ -272,6 +335,10 @@ export default function LumoApp() {
     const ok = await verifySession();
     if (ok) setAuthModal(false);
   }, [verifySession]);
+
+  const activeRoomStudentId =
+    interfaceMode === 'mentor' ? getActiveRoomStudentId() : null;
+  const activeRoomStudentName = getActiveRoomStudentName();
 
   if (!sessionReady) {
     return (
@@ -298,15 +365,56 @@ export default function LumoApp() {
           navigate('/');
         }}
         isAdmin={Boolean(profile?.isAdmin)}
+        interfaceMode={interfaceMode}
+        onInterfaceModeChange={profile?.isAdmin ? handleInterfaceModeChange : undefined}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-12 shrink-0 flex items-center justify-end gap-2 px-4 border-b border-neutral-200 bg-white/90 backdrop-blur-sm">
-          {authed && profile && (
-            <span className="text-xs text-muted-foreground hidden md:inline mr-auto">
+          {activeRoomStudentId && interfaceMode === 'mentor' && (
+            <span className="mr-auto text-xs font-medium text-violet-800 bg-violet-50 border border-violet-200 rounded-full px-3 py-1 hidden sm:inline">
+              Комната: {activeRoomStudentName || `студент #${activeRoomStudentId}`}
+            </span>
+          )}
+          {profile?.isAdmin && (
+            <div className="mr-auto flex items-center gap-2">
+              <div className="hidden sm:flex rounded-full border border-violet-200 bg-violet-50 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => handleInterfaceModeChange('user')}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                    interfaceMode === 'user'
+                      ? 'bg-white text-neutral-900 shadow-sm'
+                      : 'text-neutral-500 hover:text-neutral-800'
+                  }`}
+                >
+                  Студент
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInterfaceModeChange('mentor')}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                    interfaceMode === 'mentor'
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : 'text-neutral-500 hover:text-neutral-800'
+                  }`}
+                >
+                  Ментор
+                </button>
+              </div>
+              {interfaceMode === 'mentor' && (
+                <span className="text-xs text-violet-700 font-medium hidden md:inline">
+                  Режим ментора
+                </span>
+              )}
+            </div>
+          )}
+          {authed && profile && interfaceMode === 'user' && (
+            <span className={`text-xs text-muted-foreground hidden md:inline ${profile.isAdmin ? '' : 'mr-auto'}`}>
               {profile.aiSearchRemaining ?? '—'} / {profile.aiSearchLimit ?? 3} запросов сегодня
             </span>
           )}
+          {!profile?.isAdmin && !authed && <span className="mr-auto" />}
           <button
             type="button"
             onClick={() => setDark((v) => !v)}
@@ -353,6 +461,15 @@ export default function LumoApp() {
               onOpenItem={openItem}
               authed={authed}
               onNeedsAuth={() => setAuthModal(true)}
+              roomStudentId={activeRoomStudentId}
+            />
+          )}
+          {view === 'mentor-access' && (
+            <SharedRoomStudentPanel
+              authed={authed}
+              profile={profile}
+              onNeedsAuth={() => setAuthModal(true)}
+              onOpenItem={openItem}
             />
           )}
           {view === 'team' && (
@@ -360,6 +477,14 @@ export default function LumoApp() {
               authed={authed}
               profile={profile}
               onNeedsAuth={() => setAuthModal(true)}
+            />
+          )}
+          {view === 'workspace' && (
+            <MentorWorkspaceView
+              authed={authed}
+              profile={profile}
+              onNeedsAuth={() => setAuthModal(true)}
+              onOpenItem={openItem}
             />
           )}
           {view === 'pricing' && <PricingPanel />}

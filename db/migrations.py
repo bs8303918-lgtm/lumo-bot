@@ -361,3 +361,85 @@ async def ensure_catalog_country_column() -> None:
                 text("ALTER TABLE catalog_opportunities ADD COLUMN IF NOT EXISTS country VARCHAR(64)")
             )
 
+
+async def ensure_user_role_column() -> None:
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(users)"))
+            columns = {row[1] for row in result.fetchall()}
+            if "role" not in columns:
+                await conn.execute(
+                    text("ALTER TABLE users ADD COLUMN role VARCHAR(16) NOT NULL DEFAULT 'student'")
+                )
+        elif dialect == "postgresql":
+            await conn.execute(
+                text("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(16) NOT NULL DEFAULT 'student'")
+            )
+
+
+async def ensure_shared_rooms_tables() -> None:
+    dialect = engine.dialect.name
+    await ensure_user_role_column()
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS shared_rooms (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        student_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                        mentor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                        invite_token VARCHAR(64) NOT NULL UNIQUE,
+                        pending_mentor_email VARCHAR(255),
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_shared_rooms_mentor ON shared_rooms (mentor_id)")
+            )
+            result = await conn.execute(text("PRAGMA table_info(mentor_applications)"))
+            columns = {row[1] for row in result.fetchall()}
+            if "student_user_id" not in columns:
+                await conn.execute(
+                    text("ALTER TABLE mentor_applications ADD COLUMN student_user_id INTEGER REFERENCES users(id)")
+                )
+                await conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_mentor_app_student_user "
+                        "ON mentor_applications (student_user_id)"
+                    )
+                )
+        elif dialect == "postgresql":
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS shared_rooms (
+                        id SERIAL PRIMARY KEY,
+                        student_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                        mentor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                        invite_token VARCHAR(64) NOT NULL UNIQUE,
+                        pending_mentor_email VARCHAR(255),
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_shared_rooms_mentor ON shared_rooms (mentor_id)")
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE mentor_applications "
+                    "ADD COLUMN IF NOT EXISTS student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+                )
+            )
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_mentor_app_student_user "
+                    "ON mentor_applications (student_user_id)"
+                )
+            )
+

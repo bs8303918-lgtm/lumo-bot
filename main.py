@@ -14,6 +14,7 @@ from db.migrations import (
     ensure_subscription_columns,
     ensure_team_profiles_table,
     ensure_mentor_workspace_tables,
+    ensure_shared_rooms_tables,
     ensure_user_columns,
     ensure_web_auth_columns,
 )
@@ -56,6 +57,7 @@ async def init_schema() -> None:
     await ensure_web_auth_columns()
     await ensure_team_profiles_table()
     await ensure_mentor_workspace_tables()
+    await ensure_shared_rooms_tables()
 
 
 async def run_startup_maintenance() -> None:

@@ -26,6 +26,7 @@ KANBAN_LABELS = {
 class ApplicationCreateRequest(BaseModel):
     catalogId: int
     studentName: str = Field(default="Студент", max_length=120)
+    studentUserId: int | None = Field(default=None, ge=1)
     status: str = Field(default="todo")
     notes: str | None = Field(default=None, max_length=2000)
 
@@ -123,6 +124,7 @@ async def create_application(
         user.id,
         catalog_id=body.catalogId,
         student_name=body.studentName.strip() or "Студент",
+        student_user_id=body.studentUserId,
         status=body.status,
         notes=body.notes,
     )

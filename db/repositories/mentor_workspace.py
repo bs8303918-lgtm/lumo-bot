@@ -40,12 +40,43 @@ class MentorWorkspaceRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_applications_for_student(
+        self,
+        mentor_user_id: int,
+        student_user_id: int,
+    ) -> list[MentorApplication]:
+        result = await self.session.execute(
+            select(MentorApplication)
+            .where(
+                MentorApplication.user_id == mentor_user_id,
+                MentorApplication.student_user_id == student_user_id,
+            )
+            .order_by(MentorApplication.updated_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_application_for_student(
+        self,
+        mentor_user_id: int,
+        student_user_id: int,
+        app_id: int,
+    ) -> MentorApplication | None:
+        result = await self.session.execute(
+            select(MentorApplication).where(
+                MentorApplication.user_id == mentor_user_id,
+                MentorApplication.student_user_id == student_user_id,
+                MentorApplication.id == app_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def upsert_application(
         self,
         user_id: int,
         *,
         catalog_id: int,
         student_name: str = "Студент",
+        student_user_id: int | None = None,
         status: str = "todo",
         notes: str | None = None,
     ) -> MentorApplication:
@@ -61,6 +92,8 @@ class MentorWorkspaceRepository:
             existing.status = status
             if notes is not None:
                 existing.notes = notes
+            if student_user_id is not None:
+                existing.student_user_id = student_user_id
             await self.session.flush()
             return existing
 
@@ -68,6 +101,7 @@ class MentorWorkspaceRepository:
             user_id=user_id,
             catalog_id=catalog_id,
             student_name=student_name[:120],
+            student_user_id=student_user_id,
             status=status if status in KANBAN_STATUSES else "todo",
             notes=notes,
         )

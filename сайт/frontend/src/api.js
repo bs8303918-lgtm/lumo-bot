@@ -16,6 +16,31 @@ const API = API_BASE ? `${API_BASE}/api` : '/api';
 const TELEGRAM_LOGIN_KEY = 'lumo-telegram-login';
 const GOOGLE_AUTH_KEY = 'lumo-google-auth';
 const WEB_AUTH_KEY = 'lumo-web-auth';
+const ROOM_STUDENT_KEY = 'lumo-active-room-student-id';
+const ROOM_STUDENT_NAME_KEY = 'lumo-active-room-student-name';
+
+export function getActiveRoomStudentId() {
+  const raw = localStorage.getItem(ROOM_STUDENT_KEY);
+  if (!raw) return null;
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+export function getActiveRoomStudentName() {
+  return localStorage.getItem(ROOM_STUDENT_NAME_KEY) || null;
+}
+
+export function setActiveRoom(studentId, studentName) {
+  if (studentId) {
+    localStorage.setItem(ROOM_STUDENT_KEY, String(studentId));
+    if (studentName) localStorage.setItem(ROOM_STUDENT_NAME_KEY, studentName);
+  }
+}
+
+export function clearActiveRoom() {
+  localStorage.removeItem(ROOM_STUDENT_KEY);
+  localStorage.removeItem(ROOM_STUDENT_NAME_KEY);
+}
 
 function decodeJwtPayload(token) {
   try {
@@ -105,8 +130,10 @@ export function isAuthenticated() {
   return false;
 }
 
-export function apiHeaders() {
+export function apiHeaders(roomStudentId = null) {
   const headers = { 'Content-Type': 'application/json' };
+  const roomId = roomStudentId ?? getActiveRoomStudentId();
+  if (roomId) headers['X-Room-Student-Id'] = String(roomId);
   const tg = getTelegram();
   if (tg?.initData) {
     headers['X-Telegram-Init-Data'] = tg.initData;
@@ -156,7 +183,7 @@ export async function apiFetch(path, options = {}) {
     throw new Error('VITE_API_URL не задан на Vercel. Укажи URL Railway и redeploy.');
   }
 
-  const { timeoutMs, auth = true, ...fetchOptions } = options;
+  const { timeoutMs, auth = true, roomStudentId = null, ...fetchOptions } = options;
   const url = `${API}${path}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs ?? 20000);
@@ -166,7 +193,7 @@ export async function apiFetch(path, options = {}) {
       ...fetchOptions,
       signal: controller.signal,
       headers: {
-        ...(auth ? apiHeaders() : { 'Content-Type': 'application/json' }),
+        ...(auth ? apiHeaders(roomStudentId) : { 'Content-Type': 'application/json' }),
         ...fetchOptions.headers,
       },
     });

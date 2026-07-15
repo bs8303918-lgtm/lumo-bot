@@ -26,6 +26,7 @@ from services.interest_matcher import (
 )
 from services.opportunity_catalog import catalog_repo
 from services.subscription import has_ai_access, public_plans, subscription_status
+from services.shared_room_access import effective_catalog_user, read_room_student_id_header
 from bot.background import run_interest_side_effects
 from services.catalog_display import entry_has_cash_prize, sort_opportunities_by_newest
 from services.webapp_catalog import (
@@ -172,6 +173,7 @@ async def get_me(
         "hasAiAccess": has_ai_access(user, telegram_id=user.telegram_id),
         "catalogCount": catalog_count,
         "subscription": subscription_status(user),
+        "role": (user.role or "student").lower(),
     }
 
 
@@ -269,9 +271,11 @@ async def set_interest(
 async def lumo_categories(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
+    room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> list[dict]:
-    counts = await catalog_repo(session).count_active_by_type_for_user(user.id)
-    total = await catalog_repo(session).count_active_for_user(user.id)
+    catalog_user = await effective_catalog_user(session, user, room_student_id)
+    counts = await catalog_repo(session).count_active_by_type_for_user(catalog_user.id)
+    total = await catalog_repo(session).count_active_for_user(catalog_user.id)
     return build_category_list(counts, total_entries=total)
 
 
@@ -280,12 +284,14 @@ async def lumo_catalog_bootstrap(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
     limit: int = Query(default=20, ge=1, le=50),
+    room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> dict:
     """Categories + first catalog page in one request (faster Mini App load)."""
     from db.base import async_session_factory
 
+    catalog_user = await effective_catalog_user(session, user, room_student_id)
     fetch_cap = min(120, limit * 6 + 24)
-    user_id = user.id
+    user_id = catalog_user.id
 
     async def load_counts() -> tuple[dict[str, int], int]:
         async with async_session_factory() as s:
@@ -329,7 +335,9 @@ async def lumo_opportunities(
     offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
+    room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> dict:
+    catalog_user = await effective_catalog_user(session, user, room_student_id)
     repo = catalog_repo(session)
     page_limit = page_size or limit
 
@@ -344,7 +352,7 @@ async def lumo_opportunities(
         types_filter = ALL_TYPES
 
     fetch_cap = min(max(page_limit + offset + page_limit, 60), 200)
-    items = await repo.get_active_for_user(user.id, types_filter, limit=fetch_cap)
+    items = await repo.get_active_for_user(catalog_user.id, types_filter, limit=fetch_cap)
     unique = dedupe_opportunities(items)
 
     if q:
@@ -385,7 +393,9 @@ async def lumo_opportunity(
     item_id: int,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
+    room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> dict:
+    catalog_user = await effective_catalog_user(session, user, room_student_id)
     repo = catalog_repo(session)
     row = await repo.get_entry_with_channel(item_id)
     if not row:
@@ -394,7 +404,7 @@ async def lumo_opportunity(
     if not entry.is_active:
         raise HTTPException(status_code=404, detail="Not found")
 
-    if not await repo.user_can_access_entry(user.id, entry.id):
+    if not await repo.user_can_access_entry(catalog_user.id, entry.id):
         raise HTTPException(status_code=403, detail="Not available for your channels")
 
     await EventRepository(session).log(CATALOG_VIEW, user_id=user.id, related_id=entry.id)
@@ -417,19 +427,25 @@ async def lumo_match(
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
+    room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> dict:
-    query = (payload.query or user.interest_query or "").strip()
+    catalog_user = await effective_catalog_user(session, user, room_student_id)
+    query = (payload.query or catalog_user.interest_query or "").strip()
     if len(query) < 3:
         raise HTTPException(status_code=422, detail="Опиши запрос подробнее")
 
     save_profile = payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH
     if save_profile:
-        await enforce_ai_search_limit(session, user.id, telegram_id=user.telegram_id)
-        await _persist_interest(session, user, query, skip_llm=False)
+        await enforce_ai_search_limit(
+            session,
+            catalog_user.id,
+            telegram_id=catalog_user.telegram_id,
+        )
+        await _persist_interest(session, catalog_user, query, skip_llm=False)
 
     items, cat_list, _raw_categories = await _search_catalog(
         session,
-        user,
+        catalog_user,
         query,
         limit=payload.limit,
     )
@@ -448,7 +464,7 @@ async def lumo_match(
     if save_profile:
         background_tasks.add_task(
             run_interest_side_effects,
-            user.id,
+            catalog_user.id,
             query,
             results_count=count,
             profile_changed=False,

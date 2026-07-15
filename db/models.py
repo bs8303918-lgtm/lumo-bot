@@ -35,6 +35,7 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    role: Mapped[str] = mapped_column(String(16), default="student", server_default="student", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -57,6 +58,36 @@ class User(Base):
     mentor_shortlists: Mapped[list["MentorShortlist"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    student_room: Mapped["SharedRoom | None"] = relationship(
+        back_populates="student",
+        cascade="all, delete-orphan",
+        uselist=False,
+        foreign_keys="SharedRoom.student_id",
+    )
+    mentor_rooms: Mapped[list["SharedRoom"]] = relationship(
+        back_populates="mentor",
+        foreign_keys="SharedRoom.mentor_id",
+    )
+
+
+class SharedRoom(Base):
+    """Комната совместной работы студента с ментором."""
+
+    __tablename__ = "shared_rooms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    mentor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    invite_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    pending_mentor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    student: Mapped["User"] = relationship(back_populates="student_room", foreign_keys=[student_id])
+    mentor: Mapped["User | None"] = relationship(back_populates="mentor_rooms", foreign_keys=[mentor_id])
 
 
 class SeedChannel(Base):
@@ -381,6 +412,9 @@ class MentorApplication(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True)
     student_name: Mapped[str] = mapped_column(String(120), default="Студент", server_default="Студент")
+    student_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     status: Mapped[str] = mapped_column(String(32), default="todo", server_default="todo", index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

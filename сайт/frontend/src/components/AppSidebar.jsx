@@ -1,7 +1,9 @@
 import {
   BarChart3,
+  Briefcase,
   Compass,
   DollarSign,
+  Handshake,
   LogOut,
   Menu,
   MessageSquarePlus,
@@ -11,12 +13,49 @@ import {
 import { Link } from 'react-router-dom';
 import LumoLogo from './LumoLogo.jsx';
 
-const NAV = [
+const USER_NAV = [
   { id: 'chat', icon: MessageSquarePlus, label: 'Чат' },
   { id: 'catalog', icon: Compass, label: 'Каталог' },
+  { id: 'mentor-access', icon: Handshake, label: 'Мой ментор' },
+  { id: 'workspace', icon: Briefcase, label: 'Менторы' },
   { id: 'team', icon: Users, label: 'Команда' },
   { id: 'pricing', icon: DollarSign, label: 'Тарифы' },
 ];
+
+const MENTOR_NAV = [
+  { id: 'workspace', icon: Briefcase, label: 'Менторы' },
+  { id: 'catalog', icon: Compass, label: 'Каталог' },
+];
+
+function InterfaceModeToggle({ mode, onChange, collapsed }) {
+  return (
+    <div
+      className={`rounded-xl border border-violet-200 bg-violet-50/80 p-1 ${
+        collapsed ? 'flex flex-col gap-1' : 'flex gap-1'
+      }`}
+      title="Режим интерфейса"
+    >
+      <button
+        type="button"
+        onClick={() => onChange('user')}
+        className={`rounded-lg text-xs font-semibold transition-colors ${
+          collapsed ? 'px-2 py-2' : 'flex-1 px-3 py-2'
+        } ${mode === 'user' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+      >
+        {collapsed ? '👤' : 'Студент'}
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('mentor')}
+        className={`rounded-lg text-xs font-semibold transition-colors ${
+          collapsed ? 'px-2 py-2' : 'flex-1 px-3 py-2'
+        } ${mode === 'mentor' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500 hover:text-neutral-800'}`}
+      >
+        {collapsed ? '💼' : 'Ментор'}
+      </button>
+    </div>
+  );
+}
 
 export default function AppSidebar({
   active,
@@ -28,10 +67,15 @@ export default function AppSidebar({
   displayName,
   onLogout,
   isAdmin,
+  interfaceMode = 'user',
+  onInterfaceModeChange,
 }) {
-  const navItems = isAdmin
-    ? [...NAV, { id: 'traction', icon: BarChart3, label: 'Трекшн' }]
-    : NAV;
+  const mentorMode = interfaceMode === 'mentor';
+  const navItems = mentorMode ? [...MENTOR_NAV] : [...USER_NAV];
+
+  if (isAdmin) {
+    navItems.push({ id: 'traction', icon: BarChart3, label: 'Трекшн' });
+  }
 
   return (
     <aside
@@ -55,16 +99,33 @@ export default function AppSidebar({
         </button>
       </div>
 
+      {isAdmin && onInterfaceModeChange && (
+        <div className={`px-2 pt-3 ${collapsed ? '' : ''}`}>
+          <InterfaceModeToggle
+            mode={interfaceMode}
+            onChange={onInterfaceModeChange}
+            collapsed={collapsed}
+          />
+          {!collapsed && mentorMode && (
+            <p className="text-[10px] text-violet-600/80 px-1 mt-2 leading-snug">
+              Режим ментора: дедлайны, подборки, оценка шансов
+            </p>
+          )}
+        </div>
+      )}
+
       <nav className="flex-1 py-3 px-2 space-y-1">
-        <button
-          type="button"
-          onClick={onNewChat}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
-          title="Новый чат"
-        >
-          <MessageSquarePlus size={18} className="shrink-0" />
-          {!collapsed && <span>Новый чат</span>}
-        </button>
+        {!mentorMode && (
+          <button
+            type="button"
+            onClick={onNewChat}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 transition-colors"
+            title="Новый чат"
+          >
+            <MessageSquarePlus size={18} className="shrink-0" />
+            {!collapsed && <span>Новый чат</span>}
+          </button>
+        )}
 
         {navItems.map(({ id, icon: Icon, label }) => {
           const isActive = active === id;
@@ -76,7 +137,9 @@ export default function AppSidebar({
               title={label}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-neutral-100 text-neutral-900 font-semibold'
+                  ? id === 'workspace'
+                    ? 'bg-violet-100 text-violet-900 font-semibold'
+                    : 'bg-neutral-100 text-neutral-900 font-semibold'
                   : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
               }`}
             >
