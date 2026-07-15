@@ -62,13 +62,20 @@ class OpportunityCatalogService:
             await backfill_posted_at(limit=30)
             repo = catalog_repo(session)
             archived = await repo.archive_stale_unclassified(limit=200)
-            await repo.deactivate_expired()
-            await repo.deactivate_stale_without_deadline()
-            await repo.deactivate_old_posts()
-            await repo.deactivate_invalid_active()
+            expired_ids = await repo.deactivate_expired()
+            stale_ids = await repo.deactivate_stale_without_deadline()
+            old_ids = await repo.deactivate_old_posts()
+            invalid_ids = await repo.deactivate_invalid_active()
             await repo.reclassify_active_types()
-            await repo.deactivate_duplicates()
+            duplicate_ids = await repo.deactivate_duplicates()
             await session.commit()
+            deactivated_ids = list(
+                dict.fromkeys([*expired_ids, *stale_ids, *old_ids, *invalid_ids, *duplicate_ids])
+            )
+            if deactivated_ids:
+                from services.startify_catalog_push import schedule_catalog_deactivate
+
+                schedule_catalog_deactivate(deactivated_ids)
             if archived:
                 logger.info("Archived %d stale unclassified posts (skipped LLM)", archived)
             pending = await repo.get_unclassified_messages(limit=batch_limit)

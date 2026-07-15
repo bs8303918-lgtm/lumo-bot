@@ -25,10 +25,14 @@ Push is faster — new contests appear on the site within seconds.
 ## Lumo Railway env
 
 ```env
-PARTNER_API_KEY=lumo_partner_I_xakIY1cpbkT_UNYar6yyHa0i-CBN40WpAo_Z9ALBE
-STARTIFY_CATALOG_WEBHOOK_URL=https://api.startify.example/api/webhooks/lumo/catalog
+PARTNER_API_KEY=<same Bearer as Startify>
+STARTIFY_CATALOG_WEBHOOK_URL=https://api.aistartify.com/api/webhooks/lumo/catalog
 STARTIFY_CATALOG_PUSH_ENABLED=true
 ```
+
+Dev webhook: `https://api-dev.aistartify.com/api/webhooks/lumo/catalog`
+
+See also [STARTIFY_INTEGRATION_CHECKLIST.md](./STARTIFY_INTEGRATION_CHECKLIST.md).
 
 | Variable | Required | Description |
 |----------|----------|-------------|

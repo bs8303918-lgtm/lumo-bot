@@ -93,24 +93,31 @@ async def run_startup_maintenance() -> None:
 
         repo = catalog_repo(session)
         archived = await repo.archive_stale_unclassified(limit=200)
-        expired = await repo.deactivate_expired()
-        stale = await repo.deactivate_stale_without_deadline()
-        old = await repo.deactivate_old_posts()
-        invalid = await repo.deactivate_invalid_active()
+        expired_ids = await repo.deactivate_expired()
+        stale_ids = await repo.deactivate_stale_without_deadline()
+        old_ids = await repo.deactivate_old_posts()
+        invalid_ids = await repo.deactivate_invalid_active()
         reclassified = await repo.reclassify_active_types()
-        duplicates = await repo.deactivate_duplicates()
-        if archived or expired or stale or old or invalid or reclassified or duplicates:
+        duplicate_ids = await repo.deactivate_duplicates()
+        deactivated_ids = list(
+            dict.fromkeys([*expired_ids, *stale_ids, *old_ids, *invalid_ids, *duplicate_ids])
+        )
+        if archived or deactivated_ids or reclassified:
             await session.commit()
             logger.info(
                 "Catalog cleanup: archived=%d expired=%d stale=%d old=%d invalid=%d reclassified=%d dup=%d",
                 archived,
-                expired,
-                stale,
-                old,
-                invalid,
+                len(expired_ids),
+                len(stale_ids),
+                len(old_ids),
+                len(invalid_ids),
                 reclassified,
-                duplicates,
+                len(duplicate_ids),
             )
+            if deactivated_ids:
+                from services.startify_catalog_push import schedule_catalog_deactivate
+
+                schedule_catalog_deactivate(deactivated_ids)
 
 
 async def init_database() -> None:

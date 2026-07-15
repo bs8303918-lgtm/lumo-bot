@@ -398,9 +398,13 @@ async def cmd_purge_channel(message: Message, session: AsyncSession) -> None:
 async def cmd_dedupe_catalog(message: Message, session: AsyncSession) -> None:
     """Убрать дубликаты в каталоге (одинаковое название или ссылка)."""
     repo = OpportunityCatalogRepository(session)
-    removed = await repo.deactivate_duplicates()
+    removed_ids = await repo.deactivate_duplicates()
     await session.commit()
-    await message.answer(f"🧹 Дубликаты в каталоге: деактивировано {removed} записей.")
+    if removed_ids:
+        from services.startify_catalog_push import schedule_catalog_deactivate
+
+        schedule_catalog_deactivate(removed_ids)
+    await message.answer(f"🧹 Дубликаты в каталоге: деактивировано {len(removed_ids)} записей.")
 
 
 @router.message(Command("push_startify"), AdminFilter())

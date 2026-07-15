@@ -20,6 +20,7 @@ from services.subscription import (
     normalize_plan_id,
     subscription_status,
 )
+from services.subscription_grant import clear_subscription_push_flags
 from services.webapp_catalog import dedupe_opportunities, serialize_opportunity, sort_opportunities_by_deadline
 
 router = APIRouter(prefix="/partner/v1", tags=["partner-startify"])
@@ -99,6 +100,7 @@ async def partner_upsert_subscription(
     else:
         user.tariff_expires_at = expires_at_for_plan(plan)
 
+    await clear_subscription_push_flags(session, user.id)
     await session.flush()
     return {"ok": True, "user": _serialize_user(user)}
 

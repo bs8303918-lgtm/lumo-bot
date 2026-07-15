@@ -118,7 +118,7 @@ class OpportunityCatalogRepository:
                 return entry
         return None
 
-    async def deactivate_duplicates(self) -> int:
+    async def deactivate_duplicates(self) -> list[int]:
         """Оставить одну активную запись на название/ссылку — новее важнее."""
         result = await self.session.execute(
             select(CatalogOpportunity)
@@ -126,7 +126,7 @@ class OpportunityCatalogRepository:
             .order_by(CatalogOpportunity.classified_at.desc())
         )
         seen_keys: set[str] = set()
-        deactivated = 0
+        deactivated_ids: list[int] = []
         for entry in result.scalars():
             try:
                 keys = catalog_dedupe_keys(entry.title, entry.application_url, entry.description)
@@ -136,12 +136,12 @@ class OpportunityCatalogRepository:
                 continue
             if keys & seen_keys:
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             seen_keys |= keys
-        if deactivated:
+        if deactivated_ids:
             await self.session.flush()
-        return deactivated
+        return deactivated_ids
 
     async def create(
         self,
@@ -581,24 +581,24 @@ class OpportunityCatalogRepository:
         )
         return result.scalar_one_or_none()
 
-    async def deactivate_expired(self) -> int:
+    async def deactivate_expired(self) -> list[int]:
         result = await self.session.execute(
             select(CatalogOpportunity, RawMessage.text, RawMessage.posted_at, RawMessage.fetched_at)
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
             .where(CatalogOpportunity.is_active.is_(True))
         )
-        deactivated = 0
+        deactivated_ids: list[int] = []
         for entry, source_text, posted_at, fetched_at in result.all():
             anchor = posted_at.date() if posted_at is not None else None
             text = source_text or entry.description or ""
             if is_opportunity_expired(entry.deadline, text, anchor_date=anchor):
                 entry.is_active = False
-                deactivated += 1
-        if deactivated:
+                deactivated_ids.append(entry.id)
+        if deactivated_ids:
             await self.session.flush()
-        return deactivated
+        return deactivated_ids
 
-    async def deactivate_old_posts(self, max_age_days: int | None = None) -> int:
+    async def deactivate_old_posts(self, max_age_days: int | None = None) -> list[int]:
         """Скрыть каталог по постам старше N дней (независимо от дедлайна)."""
         days = max_age_days if max_age_days is not None else monitor_max_message_age_days()
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
@@ -607,35 +607,35 @@ class OpportunityCatalogRepository:
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
             .where(CatalogOpportunity.is_active.is_(True))
         )
-        deactivated = 0
+        deactivated_ids: list[int] = []
         for entry, posted_at, fetched_at in result.all():
             if posted_at is None:
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             ref = posted_at
             if ref.tzinfo is None:
                 ref = ref.replace(tzinfo=timezone.utc)
             if ref < cutoff:
                 entry.is_active = False
-                deactivated += 1
-        if deactivated:
+                deactivated_ids.append(entry.id)
+        if deactivated_ids:
             await self.session.flush()
-        return deactivated
+        return deactivated_ids
 
-    async def deactivate_stale_without_deadline(self) -> int:
+    async def deactivate_stale_without_deadline(self) -> list[int]:
         """Hide old posts with no deadline (e.g. April announcements still marked active)."""
         result = await self.session.execute(
             select(CatalogOpportunity, RawMessage.posted_at, RawMessage.fetched_at)
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
             .where(CatalogOpportunity.is_active.is_(True))
         )
-        deactivated = 0
+        deactivated_ids: list[int] = []
         cutoff = datetime.now(timezone.utc) - timedelta(days=self.no_deadline_max_age_days)
         for entry, posted_at, fetched_at in result.all():
             if posted_at is None:
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             post_date = posted_at
             anchor = post_date.date() if post_date else None
@@ -643,24 +643,24 @@ class OpportunityCatalogRepository:
                 continue
             if is_opportunity_expired(entry.deadline, entry.description or "", anchor_date=anchor):
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             if post_date.tzinfo is None:
                 post_date = post_date.replace(tzinfo=timezone.utc)
             if post_date < cutoff:
                 entry.is_active = False
-                deactivated += 1
-        if deactivated:
+                deactivated_ids.append(entry.id)
+        if deactivated_ids:
             await self.session.flush()
-        return deactivated
+        return deactivated_ids
 
-    async def deactivate_invalid_active(self) -> int:
+    async def deactivate_invalid_active(self) -> list[int]:
         result = await self.session.execute(
             select(CatalogOpportunity, RawMessage.text)
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
             .where(CatalogOpportunity.is_active.is_(True))
         )
-        deactivated = 0
+        deactivated_ids: list[int] = []
         for entry, source_text in result.all():
             invalid, _ = is_invalid_opportunity_extraction(
                 {
@@ -673,30 +673,30 @@ class OpportunityCatalogRepository:
             )
             if invalid:
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             is_digest, _ = is_likely_digest_or_roundup(source_text or "")
             if is_digest:
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             is_rubric, _ = is_likely_interview_or_rubric(source_text or "")
             if is_rubric:
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             is_product_news, _ = is_likely_product_feature_news(source_text or "")
             if is_product_news:
                 entry.is_active = False
-                deactivated += 1
+                deactivated_ids.append(entry.id)
                 continue
             title_lower = (entry.title or "").lower()
             if title_lower.startswith("test ") or "test hackathon" in title_lower:
                 entry.is_active = False
-                deactivated += 1
-        if deactivated:
+                deactivated_ids.append(entry.id)
+        if deactivated_ids:
             await self.session.flush()
-        return deactivated
+        return deactivated_ids
 
     async def reclassify_active_types(self) -> int:
         """Fix misclassified types and rebuild multi-tags for active entries."""
