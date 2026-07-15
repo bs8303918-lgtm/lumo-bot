@@ -15,6 +15,7 @@ from llm.prompts import (
     CATALOG_MATCH_PROMPT,
     CLASSIFICATION_PROMPT,
     INTEREST_CATEGORIES_PROMPT,
+    PROFILE_EVALUATOR_PROMPT,
     RELEVANCE_PROMPT,
     TEAM_PROFILE_PROMPT,
 )
@@ -265,6 +266,26 @@ class LLMClient:
         if isinstance(ids, list):
             return [int(x) for x in ids if str(x).isdigit()], raw
         return [], raw
+
+    async def evaluate_profile_fit(
+        self,
+        *,
+        student_profile: str,
+        title: str,
+        opp_type: str,
+        description: str | None,
+        requirements: str | None,
+        deadline: str | None,
+    ) -> tuple[dict | None, str | None]:
+        prompt = PROFILE_EVALUATOR_PROMPT.format(
+            student_profile=student_profile,
+            title=title,
+            opp_type=opp_type,
+            description=(description or "не указано")[:800],
+            requirements=(requirements or "не указаны")[:600],
+            deadline=deadline or "не указан",
+        )
+        return await self._json_prompt(prompt, max_tokens=512, user_profile=True)
 
     async def _json_prompt(
         self,

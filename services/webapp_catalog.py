@@ -29,6 +29,8 @@ from services.interest_matcher import (
 )
 from services.match_feedback_memory import FeedbackHints, apply_feedback_score
 from services.opportunity_links import (
+    enrich_opportunity_links,
+    extract_registration_url,
     normalize_application_url,
     normalize_message_link,
     pick_telegram_post_link,
@@ -69,6 +71,8 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
     primary = tag_objects[0] if tag_objects else serialize_tag(opp_type)
     emoji, label = CATEGORY_DISPLAY.get(opp_type, ("📌", opp_type.capitalize()))
     app_url = normalize_application_url(entry.application_url)
+    if not app_url:
+        app_url = extract_registration_url(entry.description, entry.requirements)
     msg_link = pick_telegram_post_link(entry.message_link, entry.application_url)
     if not msg_link:
         msg_link = normalize_message_link(entry.message_link)
@@ -99,6 +103,22 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
         "messageLink": msg_link,
         "isPremium": bool(app_url),
     }
+
+
+def serialize_opportunity_detail(
+    entry: CatalogOpportunity,
+    *,
+    channel_identifier: str | None = None,
+    telegram_message_id: int | None = None,
+) -> dict:
+    payload = serialize_opportunity(entry)
+    return enrich_opportunity_links(
+        payload,
+        channel_identifier=channel_identifier,
+        telegram_message_id=telegram_message_id,
+        description=entry.description,
+        requirements=entry.requirements,
+    )
 
 
 def _entry_anchor_date(entry: CatalogOpportunity):

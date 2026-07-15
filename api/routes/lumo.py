@@ -390,7 +390,7 @@ async def lumo_opportunity(
     row = await repo.get_entry_with_channel(item_id)
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
-    entry, _channel = row
+    entry, channel = row
     if not entry.is_active:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -400,7 +400,15 @@ async def lumo_opportunity(
     await EventRepository(session).log(CATALOG_VIEW, user_id=user.id, related_id=entry.id)
     await session.commit()
 
-    return serialize_opportunity(entry)
+    raw_message = getattr(entry, "raw_message", None)
+    message_id = raw_message.telegram_message_id if raw_message else None
+    from services.webapp_catalog import serialize_opportunity_detail
+
+    return serialize_opportunity_detail(
+        entry,
+        channel_identifier=channel.channel_identifier,
+        telegram_message_id=message_id,
+    )
 
 
 @router.post("/lumo/match")

@@ -7,11 +7,13 @@ from bot.instance import close_bot, create_bot
 from config import get_settings
 from db.base import Base, async_session_factory, configure_supabase_pooler, engine
 from db.migrations import (
+    ensure_catalog_country_column,
     ensure_catalog_multi_per_message,
     ensure_google_auth_columns,
     ensure_raw_message_columns,
     ensure_subscription_columns,
     ensure_team_profiles_table,
+    ensure_mentor_workspace_tables,
     ensure_user_columns,
     ensure_web_auth_columns,
 )
@@ -48,10 +50,12 @@ async def init_schema() -> None:
     await ensure_user_columns()
     await ensure_raw_message_columns()
     await ensure_catalog_multi_per_message()
+    await ensure_catalog_country_column()
     await ensure_subscription_columns()
     await ensure_google_auth_columns()
     await ensure_web_auth_columns()
     await ensure_team_profiles_table()
+    await ensure_mentor_workspace_tables()
 
 
 async def run_startup_maintenance() -> None:

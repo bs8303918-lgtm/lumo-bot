@@ -224,3 +224,140 @@ async def ensure_team_profiles_table() -> None:
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_role ON team_profiles (role)"))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_city ON team_profiles (city)"))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_profiles_active ON team_profiles (is_active)"))
+
+
+async def ensure_mentor_workspace_tables() -> None:
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS mentor_applications (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        catalog_id INTEGER NOT NULL REFERENCES catalog_opportunities(id) ON DELETE CASCADE,
+                        student_name VARCHAR(120) NOT NULL DEFAULT 'Студент',
+                        status VARCHAR(32) NOT NULL DEFAULT 'todo',
+                        notes TEXT,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(user_id, catalog_id, student_name)
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_mentor_app_user ON mentor_applications (user_id)")
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_mentor_app_status ON mentor_applications (status)")
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS mentor_shortlists (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        title VARCHAR(200) NOT NULL,
+                        agency_name VARCHAR(120) NOT NULL DEFAULT 'Lumo',
+                        slug VARCHAR(16) NOT NULL UNIQUE,
+                        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_mentor_shortlist_user ON mentor_shortlists (user_id)")
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS mentor_shortlist_items (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        shortlist_id INTEGER NOT NULL REFERENCES mentor_shortlists(id) ON DELETE CASCADE,
+                        catalog_id INTEGER NOT NULL REFERENCES catalog_opportunities(id) ON DELETE CASCADE,
+                        sort_order INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_mentor_shortlist_items ON mentor_shortlist_items (shortlist_id)"
+                )
+            )
+        elif dialect == "postgresql":
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS mentor_applications (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        catalog_id INTEGER NOT NULL REFERENCES catalog_opportunities(id) ON DELETE CASCADE,
+                        student_name VARCHAR(120) NOT NULL DEFAULT 'Студент',
+                        status VARCHAR(32) NOT NULL DEFAULT 'todo',
+                        notes TEXT,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW(),
+                        CONSTRAINT uq_mentor_app_student_catalog UNIQUE (user_id, catalog_id, student_name)
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_mentor_app_user ON mentor_applications (user_id)")
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_mentor_app_status ON mentor_applications (status)")
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS mentor_shortlists (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        title VARCHAR(200) NOT NULL,
+                        agency_name VARCHAR(120) NOT NULL DEFAULT 'Lumo',
+                        slug VARCHAR(16) NOT NULL UNIQUE,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_mentor_shortlist_user ON mentor_shortlists (user_id)")
+            )
+            await conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS mentor_shortlist_items (
+                        id SERIAL PRIMARY KEY,
+                        shortlist_id INTEGER NOT NULL REFERENCES mentor_shortlists(id) ON DELETE CASCADE,
+                        catalog_id INTEGER NOT NULL REFERENCES catalog_opportunities(id) ON DELETE CASCADE,
+                        sort_order INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+            )
+            await conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_mentor_shortlist_items ON mentor_shortlist_items (shortlist_id)"
+                )
+            )
+
+
+async def ensure_catalog_country_column() -> None:
+    """Target country / audience geo on catalog_opportunities."""
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(catalog_opportunities)"))
+            columns = {row[1] for row in result.fetchall()}
+            if "country" not in columns:
+                await conn.execute(text("ALTER TABLE catalog_opportunities ADD COLUMN country TEXT"))
+        elif dialect == "postgresql":
+            await conn.execute(
+                text("ALTER TABLE catalog_opportunities ADD COLUMN IF NOT EXISTS country VARCHAR(64)")
+            )
+

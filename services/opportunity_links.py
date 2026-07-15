@@ -57,3 +57,53 @@ def pick_telegram_post_link(message_link: str | None, application_url: str | Non
         if normalized and "/" in normalized.rstrip("/").split("t.me/", 1)[-1]:
             return normalized
     return normalize_message_link(message_link) or normalize_message_link(application_url)
+
+
+def channel_public_url(channel_identifier: str | None) -> str | None:
+    ident = (channel_identifier or "").strip().lstrip("@")
+    if not ident or ident.startswith("-") or ident.isdigit():
+        return None
+    return f"https://t.me/{ident}"
+
+
+def build_message_link_from_parts(channel_identifier: str | None, telegram_message_id: int | None) -> str | None:
+    ident = (channel_identifier or "").strip().lstrip("@")
+    if not ident or ident.startswith("-") or not telegram_message_id:
+        return None
+    return f"https://t.me/{ident}/{int(telegram_message_id)}"
+
+
+def extract_registration_url(*texts: str | None) -> str | None:
+    from monitor.channel_resolver import ChannelResolver
+
+    for text in texts:
+        if not text:
+            continue
+        for raw in ChannelResolver.extract_urls(text):
+            normalized = normalize_application_url(raw)
+            if normalized and "t.me" not in normalized.lower():
+                return normalized
+    return None
+
+
+def enrich_opportunity_links(
+    payload: dict,
+    *,
+    channel_identifier: str | None = None,
+    telegram_message_id: int | None = None,
+    description: str | None = None,
+    requirements: str | None = None,
+) -> dict:
+    if not payload.get("messageLink"):
+        built = build_message_link_from_parts(channel_identifier, telegram_message_id)
+        if built:
+            payload["messageLink"] = built
+    channel_url = channel_public_url(channel_identifier)
+    if channel_url:
+        payload["channelUrl"] = channel_url
+    if not payload.get("applicationUrl"):
+        found = extract_registration_url(description, requirements)
+        if found:
+            payload["applicationUrl"] = found
+            payload["isPremium"] = True
+    return payload

@@ -51,6 +51,12 @@ class User(Base):
     team_profile: Mapped["TeamProfile | None"] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
+    mentor_applications: Mapped[list["MentorApplication"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    mentor_shortlists: Mapped[list["MentorShortlist"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class SeedChannel(Base):
@@ -172,6 +178,7 @@ class CatalogOpportunity(Base):
     deadline: Mapped[str] = mapped_column(String(128))
     description: Mapped[str] = mapped_column(Text)
     requirements: Mapped[str | None] = mapped_column(Text, nullable=True)
+    country: Mapped[str | None] = mapped_column(String(64), nullable=True)
     application_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     source_channel_name: Mapped[str] = mapped_column(String(255))
     message_link: Mapped[str] = mapped_column(String(512))
@@ -362,6 +369,53 @@ class TeamProfile(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="team_profile")
+
+
+class MentorApplication(Base):
+    __tablename__ = "mentor_applications"
+    __table_args__ = (
+        UniqueConstraint("user_id", "catalog_id", "student_name", name="uq_mentor_app_student_catalog"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True)
+    student_name: Mapped[str] = mapped_column(String(120), default="Студент", server_default="Студент")
+    status: Mapped[str] = mapped_column(String(32), default="todo", server_default="todo", index=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="mentor_applications")
+
+
+class MentorShortlist(Base):
+    __tablename__ = "mentor_shortlists"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    agency_name: Mapped[str] = mapped_column(String(120), default="Lumo", server_default="Lumo")
+    slug: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped["User"] = relationship(back_populates="mentor_shortlists")
+    items: Mapped[list["MentorShortlistItem"]] = relationship(
+        back_populates="shortlist", cascade="all, delete-orphan", order_by="MentorShortlistItem.sort_order"
+    )
+
+
+class MentorShortlistItem(Base):
+    __tablename__ = "mentor_shortlist_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    shortlist_id: Mapped[int] = mapped_column(ForeignKey("mentor_shortlists.id", ondelete="CASCADE"), index=True)
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+    shortlist: Mapped["MentorShortlist"] = relationship(back_populates="items")
 
 
 class ContactLead(Base):
