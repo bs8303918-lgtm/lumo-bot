@@ -53,7 +53,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
     mentor_applications: Mapped[list["MentorApplication"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        back_populates="mentor_user",
+        foreign_keys="MentorApplication.user_id",
+        cascade="all, delete-orphan",
     )
     mentor_shortlists: Mapped[list["MentorShortlist"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -422,7 +424,13 @@ class MentorApplication(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped["User"] = relationship(back_populates="mentor_applications")
+    mentor_user: Mapped["User"] = relationship(
+        back_populates="mentor_applications",
+        foreign_keys=[user_id],
+    )
+    student_user: Mapped["User | None"] = relationship(
+        foreign_keys=[student_user_id],
+    )
 
 
 class MentorShortlist(Base):
