@@ -10,11 +10,65 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../api.js';
 
-const STATUS_BADGE = {
-  todo: 'bg-amber-50 text-amber-800 border-amber-200',
-  in_progress: 'bg-sky-50 text-sky-800 border-sky-200',
-  submitted: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-};
+const KANBAN_COLUMNS = [
+  { id: 'todo', label: 'Нужно подать', header: 'bg-amber-50 border-amber-200 text-amber-900' },
+  { id: 'in_progress', label: 'В процессе', header: 'bg-sky-50 border-sky-200 text-sky-900' },
+  { id: 'submitted', label: 'Подано', header: 'bg-emerald-50 border-emerald-200 text-emerald-900' },
+];
+
+function StudentProposalCard({ row, updatingId, onOpenItem, onUpdateStatus }) {
+  const opp = row.opportunity || {};
+  const applyUrl = opp.applicationUrl || opp.messageLink || opp.channelUrl;
+
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm space-y-2">
+      <button
+        type="button"
+        onClick={() => onOpenItem?.(opp)}
+        className="text-left w-full font-medium text-sm text-neutral-900 hover:text-violet-700 line-clamp-2"
+      >
+        {opp.emoji ? `${opp.emoji} ` : ''}
+        {opp.title || 'Без названия'}
+      </button>
+      <p className="text-xs text-neutral-500">{opp.deadlineLabel || 'Без дедлайна'}</p>
+      {row.notes && <p className="text-xs text-neutral-500 italic">«{row.notes}»</p>}
+      <div className="flex flex-wrap gap-1.5 pt-1">
+        {row.status !== 'in_progress' && row.status !== 'submitted' && (
+          <button
+            type="button"
+            disabled={updatingId === row.id}
+            onClick={() => onUpdateStatus(row.id, 'in_progress')}
+            className="px-2 py-1 rounded-lg border border-sky-200 text-sky-700 text-[11px] font-medium hover:bg-sky-50 disabled:opacity-50"
+          >
+            В процессе
+          </button>
+        )}
+        {row.status !== 'submitted' && (
+          <button
+            type="button"
+            disabled={updatingId === row.id}
+            onClick={() => onUpdateStatus(row.id, 'submitted')}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-200 text-emerald-700 text-[11px] font-medium hover:bg-emerald-50 disabled:opacity-50"
+          >
+            {updatingId === row.id ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+            Подал
+          </button>
+        )}
+        {applyUrl && (
+          <a
+            href={applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-neutral-200 text-neutral-700 text-[11px] font-medium hover:bg-neutral-50"
+          >
+            <ExternalLink size={11} />
+            Подать
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function buildInviteUrl(invitePath) {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -161,9 +215,9 @@ export default function SharedRoomStudentPanel({ authed, profile, onNeedsAuth, o
       <div className="max-w-6xl mx-auto space-y-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">Shared Space</p>
-          <h1 className="text-2xl font-bold text-neutral-900">Мой ментор</h1>
+          <h1 className="text-2xl font-bold text-neutral-900">Мои подачи</h1>
           <p className="text-sm text-neutral-500 mt-1">
-            Ментор предлагает программы — ты видишь статус подачи в таблице ниже
+            Ментор предлагает программы — ты видишь, куда подать и что уже отправил
           </p>
         </div>
 
@@ -262,128 +316,69 @@ export default function SharedRoomStudentPanel({ authed, profile, onNeedsAuth, o
                 )}
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-neutral-100 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-neutral-900">Предложения ментора</h2>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {hasMentor
-                        ? 'Отмечай статус — ментор увидит это в своей CRM-доске'
-                        : 'Таблица появится после подключения ментора'}
-                    </p>
+              <div className="lg:col-span-2 space-y-4">
+                <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-neutral-100 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-neutral-900">Доска подач</h2>
+                      <p className="text-xs text-neutral-500 mt-0.5">
+                        {hasMentor
+                          ? 'Отмечай статус — ментор увидит это у себя в CRM'
+                          : 'Доска появится после подключения ментора'}
+                      </p>
+                    </div>
+                    {hasMentor && (
+                      <div className="flex gap-2 text-xs">
+                        <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                          Нужно: {proposalStats.todo ?? 0}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-200">
+                          В процессе: {proposalStats.in_progress ?? 0}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          Подано: {proposalStats.submitted ?? 0}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  {hasMentor && (
-                    <div className="flex gap-2 text-xs">
-                      <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                        Нужно: {proposalStats.todo ?? 0}
-                      </span>
-                      <span className="px-2.5 py-1 rounded-full bg-sky-50 text-sky-800 border border-sky-200">
-                        В процессе: {proposalStats.in_progress ?? 0}
-                      </span>
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        Подано: {proposalStats.submitted ?? 0}
-                      </span>
+
+                  {!hasMentor ? (
+                    <p className="text-sm text-neutral-400 text-center py-16 px-4">
+                      Пригласи ментора — он добавит конкурсы, а ты увидишь их на доске
+                    </p>
+                  ) : proposals.length === 0 ? (
+                    <p className="text-sm text-neutral-400 text-center py-16 px-4">
+                      Ментор ещё не предложил программы
+                    </p>
+                  ) : (
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {KANBAN_COLUMNS.map((col) => {
+                        const cards = proposals.filter((p) => p.status === col.id);
+                        return (
+                          <div key={col.id} className="rounded-xl border border-neutral-200 bg-neutral-50/60 min-h-[200px]">
+                            <div className={`px-3 py-2 border-b text-xs font-semibold rounded-t-xl ${col.header}`}>
+                              {col.label} · {cards.length}
+                            </div>
+                            <div className="p-2 space-y-2">
+                              {cards.map((row) => (
+                                <StudentProposalCard
+                                  key={row.id}
+                                  row={row}
+                                  updatingId={updatingId}
+                                  onOpenItem={onOpenItem}
+                                  onUpdateStatus={updateStatus}
+                                />
+                              ))}
+                              {cards.length === 0 && (
+                                <p className="text-xs text-neutral-400 text-center py-8">Пусто</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-
-                {!hasMentor ? (
-                  <p className="text-sm text-neutral-400 text-center py-16 px-4">
-                    Пригласи ментора — он добавит конкурсы, а ты увидишь их здесь
-                  </p>
-                ) : proposals.length === 0 ? (
-                  <p className="text-sm text-neutral-400 text-center py-16 px-4">
-                    Ментор ещё не предложил программы. Скоро появятся в этой таблице.
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-neutral-50 text-left text-xs text-neutral-500 uppercase tracking-wide">
-                          <th className="px-4 py-3 font-semibold">Программа</th>
-                          <th className="px-4 py-3 font-semibold hidden sm:table-cell">Дедлайн</th>
-                          <th className="px-4 py-3 font-semibold">Статус</th>
-                          <th className="px-4 py-3 font-semibold text-right">Действия</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {proposals.map((row) => {
-                          const opp = row.opportunity || {};
-                          const badge = STATUS_BADGE[row.status] || STATUS_BADGE.todo;
-                          const applyUrl = opp.applicationUrl || opp.messageLink || opp.channelUrl;
-                          return (
-                            <tr key={row.id} className="hover:bg-neutral-50/80">
-                              <td className="px-4 py-3">
-                                <button
-                                  type="button"
-                                  onClick={() => onOpenItem?.(opp)}
-                                  className="text-left font-medium text-neutral-900 hover:text-violet-700 line-clamp-2"
-                                >
-                                  {opp.emoji ? `${opp.emoji} ` : ''}
-                                  {opp.title || 'Без названия'}
-                                </button>
-                                <p className="text-xs text-neutral-400 mt-0.5">{opp.label || opp.type}</p>
-                                {row.notes && (
-                                  <p className="text-xs text-neutral-500 mt-1 italic">«{row.notes}»</p>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 hidden sm:table-cell whitespace-nowrap">
-                                <span className={opp.deadlineUrgent ? 'text-rose-600 font-medium' : 'text-neutral-600'}>
-                                  {opp.deadlineLabel || '—'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${badge}`}>
-                                  {row.statusLabel}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap justify-end gap-1.5">
-                                  {row.status !== 'in_progress' && row.status !== 'submitted' && (
-                                    <button
-                                      type="button"
-                                      disabled={updatingId === row.id}
-                                      onClick={() => updateStatus(row.id, 'in_progress')}
-                                      className="px-2.5 py-1 rounded-lg border border-sky-200 text-sky-700 text-xs font-medium hover:bg-sky-50 disabled:opacity-50"
-                                    >
-                                      В процессе
-                                    </button>
-                                  )}
-                                  {row.status !== 'submitted' && (
-                                    <button
-                                      type="button"
-                                      disabled={updatingId === row.id}
-                                      onClick={() => updateStatus(row.id, 'submitted')}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50 disabled:opacity-50"
-                                    >
-                                      {updatingId === row.id ? (
-                                        <Loader2 size={12} className="animate-spin" />
-                                      ) : (
-                                        <Check size={12} />
-                                      )}
-                                      Подал
-                                    </button>
-                                  )}
-                                  {applyUrl && (
-                                    <a
-                                      href={applyUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-neutral-200 text-neutral-700 text-xs font-medium hover:bg-neutral-50"
-                                    >
-                                      <ExternalLink size={12} />
-                                      Ссылка
-                                    </a>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             </div>
           </>

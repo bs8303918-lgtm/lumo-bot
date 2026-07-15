@@ -300,6 +300,14 @@ export default function LumoApp() {
       return;
     }
 
+    // Студент не должен попадать в CRM ментора
+    setInterfaceMode('user');
+    localStorage.setItem(INTERFACE_MODE_KEY, 'user');
+    if (viewFromUrl === 'workspace') {
+      setView('mentor-access');
+      return;
+    }
+
     if (profile.isAdmin && modeFromUrl === 'mentor') {
       setInterfaceMode('mentor');
       setView('workspace');
@@ -322,9 +330,9 @@ export default function LumoApp() {
     if (mode === 'mentor') {
       setView('workspace');
     } else if (view === 'workspace') {
-      setView('chat');
+      setView(profile?.role === 'mentor' ? 'workspace' : 'mentor-access');
     }
-  }, [view]);
+  }, [view, profile?.role]);
 
   const newChat = () => {
     setView('chat');
@@ -339,6 +347,13 @@ export default function LumoApp() {
   const activeRoomStudentId =
     interfaceMode === 'mentor' ? getActiveRoomStudentId() : null;
   const activeRoomStudentName = getActiveRoomStudentName();
+  const showMentorWorkspace =
+    profile?.role === 'mentor' || (Boolean(profile?.isAdmin) && interfaceMode === 'mentor');
+
+  useEffect(() => {
+    if (!profile || showMentorWorkspace) return;
+    if (view === 'workspace') setView('mentor-access');
+  }, [profile, showMentorWorkspace, view]);
 
   if (!sessionReady) {
     return (
@@ -365,6 +380,7 @@ export default function LumoApp() {
           navigate('/');
         }}
         isAdmin={Boolean(profile?.isAdmin)}
+        userRole={profile?.role || 'student'}
         interfaceMode={interfaceMode}
         onInterfaceModeChange={profile?.isAdmin ? handleInterfaceModeChange : undefined}
       />
@@ -479,7 +495,7 @@ export default function LumoApp() {
               onNeedsAuth={() => setAuthModal(true)}
             />
           )}
-          {view === 'workspace' && (
+          {view === 'workspace' && showMentorWorkspace && (
             <MentorWorkspaceView
               authed={authed}
               profile={profile}

@@ -16,8 +16,7 @@ import LumoLogo from './LumoLogo.jsx';
 const USER_NAV = [
   { id: 'chat', icon: MessageSquarePlus, label: 'Чат' },
   { id: 'catalog', icon: Compass, label: 'Каталог' },
-  { id: 'mentor-access', icon: Handshake, label: 'Мой ментор' },
-  { id: 'workspace', icon: Briefcase, label: 'Менторы' },
+  { id: 'mentor-access', icon: Handshake, label: 'Мои подачи' },
   { id: 'team', icon: Users, label: 'Команда' },
   { id: 'pricing', icon: DollarSign, label: 'Тарифы' },
 ];
@@ -67,11 +66,14 @@ export default function AppSidebar({
   displayName,
   onLogout,
   isAdmin,
+  userRole = 'student',
   interfaceMode = 'user',
   onInterfaceModeChange,
 }) {
-  const mentorMode = interfaceMode === 'mentor';
-  const navItems = mentorMode ? [...MENTOR_NAV] : [...USER_NAV];
+  const isMentorAccount = userRole === 'mentor';
+  const mentorMode = interfaceMode === 'mentor' || isMentorAccount;
+  const showMentorCrm = mentorMode && (isMentorAccount || isAdmin);
+  const navItems = showMentorCrm ? [...MENTOR_NAV] : [...USER_NAV];
 
   if (isAdmin) {
     navItems.push({ id: 'traction', icon: BarChart3, label: 'Трекшн' });
