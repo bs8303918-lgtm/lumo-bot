@@ -84,7 +84,7 @@ async def main() -> None:
             email=MENTOR_EMAIL,
             display_name="Демо Ментор",
             role="mentor",
-            paid=False,
+            paid=True,
         )
 
         room = await rooms.get_or_create_for_student(student.id)

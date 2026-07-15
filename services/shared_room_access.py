@@ -49,15 +49,19 @@ def _parse_room_student_id(raw: str | int | None) -> int | None:
     return value
 
 
+def mentor_subscription_active(user: User) -> bool:
+    return student_subscription_active(user)
+
+
 async def resolve_room_context(
     session: AsyncSession,
     actor: User,
     room_student_id: int | None,
 ) -> RoomContext | None:
     """
-    Returns RoomContext when mentor operates inside a student room.
-    Returns None for students and admins (full personal access).
-    Raises 403 when mentor lacks room context or subscription is inactive.
+    Returns RoomContext when mentor operates inside a paid student room.
+    Returns None for students, admins, and mentor personal workspace (no room header).
+    Raises 403 when mentor opens a room whose student subscription is inactive.
     """
     settings = get_settings()
     if settings.user_is_admin(actor.telegram_id, actor.email):
@@ -68,10 +72,7 @@ async def resolve_room_context(
 
     student_id = _parse_room_student_id(room_student_id)
     if student_id is None:
-        raise HTTPException(
-            status_code=403,
-            detail="Ментору нужна активная комната студента. Выбери студента и зайди в его комнату.",
-        )
+        return None
 
     rooms = SharedRoomRepository(session)
     room = await rooms.get_mentor_room(actor.id, student_id)
@@ -85,7 +86,8 @@ async def resolve_room_context(
     if not student_subscription_active(student):
         raise HTTPException(
             status_code=403,
-            detail="Подписка студента неактивна — поиск в этой комнате недоступен",
+            detail="Подписка студента неактивна — поиск в этой комнате недоступен. "
+            "Используй «Мой стол» и свою подписку ментора.",
         )
 
     return RoomContext(actor=actor, student=student, room=room)
@@ -97,9 +99,19 @@ async def effective_catalog_user(
     room_student_id: int | None,
 ) -> User:
     """User whose catalog scope and interest profile apply to the request."""
+    settings = get_settings()
     ctx = await resolve_room_context(session, actor, room_student_id)
     if ctx:
         return ctx.student
+
+    if user_is_mentor(actor) and not settings.user_is_admin(actor.telegram_id, actor.email):
+        if not mentor_subscription_active(actor):
+            raise HTTPException(
+                status_code=403,
+                detail="Нужна активная подписка ментора для поиска в личном кабинете",
+            )
+        return actor
+
     return actor
 
 

@@ -15,13 +15,14 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { apiFetch, getActiveRoomStudentId, setActiveRoom } from '../api.js';
+import { apiFetch, clearActiveRoom, getActiveRoomStudentId, setActiveRoom } from '../api.js';
 import OpportunityCard from './OpportunityCard.jsx';
 import { buildCatalogQuery, DEFAULT_CATALOG_FILTERS } from '../constants/catalogFilters.js';
 
 const LOCAL_KANBAN_KEY = 'lumo-mentor-kanban-local';
 const LOCAL_STUDENTS_KEY = 'lumo-mentor-students';
 const ACTIVE_STUDENT_KEY = 'lumo-mentor-active-student';
+const PERSONAL_DESK_ID = 'personal-desk';
 
 function loadStudents() {
   try {
@@ -47,6 +48,27 @@ function loadActiveStudentId() {
 function saveActiveStudentId(id) {
   if (id) localStorage.setItem(ACTIVE_STUDENT_KEY, id);
   else localStorage.removeItem(ACTIVE_STUDENT_KEY);
+}
+
+function mergeRoster(localStudents, roomStudents) {
+  const personal = {
+    id: PERSONAL_DESK_ID,
+    name: 'Мой стол',
+    profile: '',
+    personal: true,
+    fromApi: false,
+  };
+  const byKey = new Map([[PERSONAL_DESK_ID, personal]]);
+  for (const room of roomStudents) {
+    byKey.set(room.id, room);
+  }
+  for (const local of localStudents) {
+    if (local.id === PERSONAL_DESK_ID) continue;
+    if (local.fromApi) continue;
+    const key = local.id || local.name.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, local);
+  }
+  return Array.from(byKey.values());
 }
 
 function mergeStudentsFromApps(students, applications) {
@@ -341,7 +363,15 @@ function StudentSwitcher({
         </button>
 
         {students.map((student) => {
-          const stats = studentStats(applications, student.name);
+          const stats =
+            student.id === PERSONAL_DESK_ID
+              ? {
+                  total: applications.length,
+                  todo: applications.filter((a) => a.status === 'todo').length,
+                  in_progress: applications.filter((a) => a.status === 'in_progress').length,
+                  submitted: applications.filter((a) => a.status === 'submitted').length,
+                }
+              : studentStats(applications, student.name);
           const isActive = activeStudentId === student.id;
           return (
             <div key={student.id} className="relative group">
@@ -355,12 +385,14 @@ function StudentSwitcher({
                 }`}
               >
                 <User size={14} />
-                <span className="max-w-[120px] truncate">{student.name}</span>
+                <span className="max-w-[120px] truncate">
+                  {student.fromApi ? `🔗 ${student.name}` : student.name}
+                </span>
                 <span className="text-[10px] tabular-nums opacity-80">
                   {stats.todo}/{stats.in_progress}/{stats.submitted}
                 </span>
               </button>
-              {onRemove && students.length > 1 && (
+              {onRemove && !student.fromApi && student.id !== PERSONAL_DESK_ID && (
                 <button
                   type="button"
                   onClick={() => onRemove(student.id)}
@@ -422,6 +454,7 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
   const [successMessage, setSuccessMessage] = useState(null);
   const [useLocalKanban, setUseLocalKanban] = useState(false);
   const [useApiRooms, setUseApiRooms] = useState(false);
+  const [mentorSubActive, setMentorSubActive] = useState(false);
   const [draggingCardId, setDraggingCardId] = useState(null);
   const [dropTargetStatus, setDropTargetStatus] = useState(null);
 
@@ -431,51 +464,58 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
     setError(null);
     try {
       let apiRooms = [];
+      let mentorPaid = Boolean(profile?.subscription?.isActive || profile?.hasAiAccess);
       if (profile?.role === 'mentor') {
         try {
           const roomsData = await apiFetch('/rooms/as-mentor');
           apiRooms = roomsData.rooms ?? [];
+          mentorPaid = Boolean(roomsData.mentorSubscriptionActive ?? mentorPaid);
         } catch {
           apiRooms = [];
         }
+        setUseApiRooms(true);
+        setMentorSubActive(mentorPaid);
       }
 
-      if (apiRooms.length > 0) {
-        const mapped = apiRooms.map((room) => ({
-          id: `room-${room.studentId}`,
-          studentId: room.studentId,
-          name: room.studentName || 'Студент',
-          profile: '',
-          canSearch: room.canSearch,
-          fromApi: true,
-        }));
-        setStudents(mapped);
-        setUseApiRooms(true);
-        saveStudents(mapped);
-
-        const savedRoomId = getActiveRoomStudentId();
-        const savedStudent = mapped.find((s) => s.studentId === savedRoomId);
-        const pick = savedStudent || mapped.find((s) => s.canSearch) || mapped[0];
-        if (pick) {
-          setActiveStudentId(pick.id);
-          saveActiveStudentId(pick.id);
-          if (pick.studentId) setActiveRoom(pick.studentId, pick.name);
-        }
-      } else if (profile?.role === 'mentor') {
-        setUseApiRooms(true);
-        setStudents([]);
-        setError('У вас пока нет комнат студентов. Примите приглашение по ссылке от студента.');
-      }
+      const roomStudents = apiRooms.map((room) => ({
+        id: `room-${room.studentId}`,
+        studentId: room.studentId,
+        name: room.studentName || 'Студент',
+        profile: '',
+        canSearch: room.canSearch,
+        fromApi: true,
+      }));
 
       const appsData = await apiFetch('/workspace/applications');
       const apps = appsData.items ?? [];
       setApplications(apps);
-      if (!apiRooms.length) {
-        setStudents((prev) => {
-          const merged = mergeStudentsFromApps(prev, apps);
-          saveStudents(merged);
-          return merged;
-        });
+
+      setStudents((prev) => {
+        const local = profile?.role === 'mentor' ? loadStudents() : prev;
+        let merged = mergeRoster(local, roomStudents);
+        merged = mergeStudentsFromApps(merged, apps);
+        saveStudents(merged.filter((s) => !s.fromApi && s.id !== PERSONAL_DESK_ID));
+        return merged;
+      });
+
+      const saved = loadActiveStudentId();
+      const rosterAfter = mergeStudentsFromApps(
+        mergeRoster(loadStudents(), roomStudents),
+        apps,
+      );
+      const savedStudent = rosterAfter.find((s) => s.id === saved);
+      const savedRoomId = getActiveRoomStudentId();
+      const savedRoomStudent = rosterAfter.find((s) => s.studentId === savedRoomId);
+      const pick =
+        savedStudent ||
+        savedRoomStudent ||
+        rosterAfter.find((s) => s.id === PERSONAL_DESK_ID) ||
+        rosterAfter[0];
+      if (pick) {
+        setActiveStudentId(pick.id);
+        saveActiveStudentId(pick.id);
+        if (pick.studentId && pick.fromApi) setActiveRoom(pick.studentId, pick.name);
+        else clearActiveRoom();
       }
       setUseLocalKanban(false);
       localStorage.removeItem(LOCAL_KANBAN_KEY);
@@ -507,7 +547,7 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
     } finally {
       setLoading(false);
     }
-  }, [authed, onNeedsAuth, profile?.role]);
+  }, [authed, onNeedsAuth, profile?.role, profile?.subscription?.isActive, profile?.hasAiAccess]);
 
   useEffect(() => {
     loadWorkspace();
@@ -522,9 +562,15 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
   }, [activeStudent, profile?.interestQuery, tab, evalProfile]);
 
   const filteredApplications = useMemo(() => {
-    if (!activeStudent) return applications;
+    if (!activeStudent || activeStudent.id === PERSONAL_DESK_ID) return applications;
     return applications.filter((a) => a.studentName === activeStudent.name);
   }, [applications, activeStudent]);
+
+  const isRoomMode = Boolean(activeStudent?.fromApi && activeStudent?.studentId);
+  const isPersonalDesk = activeStudent?.id === PERSONAL_DESK_ID || !isRoomMode;
+  const canSearchHere = isRoomMode
+    ? Boolean(activeStudent?.canSearch)
+    : Boolean(mentorSubActive || profile?.subscription?.isActive || profile?.hasAiAccess || profile?.isAdmin);
 
   const grouped = useMemo(() => {
     const map = { todo: [], in_progress: [], submitted: [] };
@@ -541,7 +587,13 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
     if (id) {
       const student = students.find((s) => s.id === id);
       if (student?.profile) setEvalProfile(student.profile);
-      if (student?.studentId) setActiveRoom(student.studentId, student.name);
+      if (student?.studentId && student?.fromApi) {
+        setActiveRoom(student.studentId, student.name);
+      } else {
+        clearActiveRoom();
+      }
+    } else {
+      clearActiveRoom();
     }
   };
 
@@ -554,16 +606,18 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
       return;
     }
     const student = { id: `student-${Date.now()}`, name: trimmed, profile: '' };
-    const next = [...students, student];
-    setStudents(next);
-    saveStudents(next);
+    setStudents((prev) => {
+      const next = [...prev, student];
+      saveStudents(next.filter((s) => !s.fromApi && s.id !== PERSONAL_DESK_ID));
+      return next;
+    });
     selectStudent(student.id);
     setSuccessMessage(`Студент «${trimmed}» добавлен`);
   };
 
   const removeStudent = (id) => {
     const student = students.find((s) => s.id === id);
-    if (!student) return;
+    if (!student || student.fromApi || student.id === PERSONAL_DESK_ID) return;
     const next = students.filter((s) => s.id !== id);
     setStudents(next);
     saveStudents(next);
@@ -584,11 +638,21 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
   const searchCatalog = async () => {
     const q = searchQuery.trim();
     if (!q) return;
-    if (useApiRooms && activeStudent && activeStudent.canSearch === false) {
-      setError('Подписка студента неактивна — поиск в этой комнате недоступен');
+    if (!activeStudent) {
+      setError('Выбери «Мой стол» или студента');
       return;
     }
-    const roomStudentId = activeStudent?.studentId ?? null;
+    if (isRoomMode && !activeStudent.canSearch) {
+      setError(
+        'Подписка студента неактивна — в этой комнате поиск недоступен. Переключись на «Мой стол».',
+      );
+      return;
+    }
+    if (isPersonalDesk && !canSearchHere) {
+      setError('Нужна подписка ментора для поиска в личном кабинете');
+      return;
+    }
+    const roomStudentId = isRoomMode ? activeStudent.studentId : null;
     setSearching(true);
     setError(null);
     setSuccessMessage(null);
@@ -863,7 +927,7 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
             <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">CRM для агентств</p>
             <h1 className="text-2xl font-bold text-neutral-900">Рабочее место ментора</h1>
             <p className="text-sm text-neutral-500 mt-1">
-              Канбан дедлайнов: предлагай программы студенту и отслеживай — подал он или нет
+              Личный CRM + комнаты студентов: канбан, подборки, поиск (твоя подписка или подписка студента)
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -894,12 +958,31 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
         )}
 
         {useApiRooms && activeStudent && (
-          <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
-            Вы в комнате студента <strong>{activeStudent.name}</strong>
-            {activeStudent.canSearch === false && (
-              <span className="block text-violet-700/90 mt-1 text-xs">
-                Подписка неактивна — поиск и ИИ-матчинг заблокированы
-              </span>
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              isRoomMode
+                ? 'border-violet-200 bg-violet-50 text-violet-900'
+                : 'border-sky-200 bg-sky-50 text-sky-900'
+            }`}
+          >
+            {isRoomMode ? (
+              <>
+                Комната студента <strong>{activeStudent.name}</strong> — поиск по его подписке
+                {!activeStudent.canSearch && (
+                  <span className="block text-violet-700/90 mt-1 text-xs">
+                    Подписка студента неактивна. Переключись на «Мой стол» для поиска по твоей подписке.
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <strong>Мой стол</strong> — личный CRM: свои студенты, канбан и поиск по подписке ментора
+                {!canSearchHere && (
+                  <span className="block mt-1 text-xs opacity-90">
+                    Оформи подписку ментора, чтобы искать конкурсы в личном кабинете
+                  </span>
+                )}
+              </>
             )}
           </div>
         )}
@@ -911,8 +994,8 @@ export default function MentorWorkspaceView({ authed, profile, onNeedsAuth, onOp
               activeStudentId={activeStudentId}
               applications={applications}
               onSelect={selectStudent}
-              onAdd={useApiRooms ? null : addStudent}
-              onRemove={useApiRooms ? null : removeStudent}
+              onAdd={addStudent}
+              onRemove={removeStudent}
             />
 
             <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm space-y-3">

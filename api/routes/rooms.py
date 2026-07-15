@@ -14,7 +14,7 @@ from db.repositories.shared_rooms import SharedRoomRepository
 from db.repositories.users import UserRepository
 from db.repositories.mentor_workspace import KANBAN_STATUSES, MentorWorkspaceRepository
 from services.opportunity_catalog import catalog_repo
-from services.shared_room_access import ROLE_MENTOR, student_subscription_active
+from services.shared_room_access import ROLE_MENTOR, mentor_subscription_active, student_subscription_active
 from services.subscription import subscription_status
 from services.webapp_catalog import serialize_opportunity
 
@@ -180,7 +180,12 @@ async def mentor_rooms(
                 "canSearch": student_subscription_active(student) if student else False,
             }
         )
-    return {"rooms": payload, "count": len(payload)}
+    return {
+        "rooms": payload,
+        "count": len(payload),
+        "mentorSubscriptionActive": mentor_subscription_active(user),
+        "personalWorkspaceEnabled": True,
+    }
 
 
 @router.get("/rooms/preview")
