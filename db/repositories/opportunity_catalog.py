@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import attributes as orm_attributes, joinedload
 
 from db.models import CatalogOpportunity, MonitoredChannel, RawMessage, User
-from llm.deadline import is_opportunity_expired
+from llm.deadline import is_opportunity_expired, resolve_entry_deadline
 from llm.json_utils import coerce_llm_dict
 from llm.spam_filter import (
     is_invalid_opportunity_extraction,
@@ -195,6 +195,13 @@ class OpportunityCatalogRepository:
         tags_json = tags_to_json(opp_tags) if opp_tags else None
         deadline = data.get("deadline") or "не указан"
         anchor = raw_message_anchor_date(raw_message)
+        deadline = resolve_entry_deadline(
+            deadline,
+            title=data.get("title") or "",
+            description=(data.get("description") or raw_message.text or "")[:500],
+            requirements=data.get("requirements") or "",
+            anchor_date=anchor,
+        )
         if is_raw_message_too_old(raw_message) or is_raw_message_too_old_for_llm(raw_message):
             entry = CatalogOpportunity(
                 raw_message_id=raw_message.id,

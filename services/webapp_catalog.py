@@ -11,7 +11,8 @@ from llm.deadline import parse_deadline
 from services.catalog_dedup import catalog_dedupe_keys
 from services.catalog_display import (
     entry_has_cash_prize,
-    format_deadline_label,
+    entry_resolved_deadline,
+    format_entry_deadline_label,
     is_entry_new,
     sort_opportunities_by_newest,
 )
@@ -71,7 +72,8 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
     msg_link = pick_telegram_post_link(entry.message_link, entry.application_url)
     if not msg_link:
         msg_link = normalize_message_link(entry.message_link)
-    deadline_meta = format_deadline_label(entry.deadline, is_archived=not entry.is_active)
+    deadline_meta = format_entry_deadline_label(entry, is_archived=not entry.is_active)
+    resolved_deadline = entry_resolved_deadline(entry)
     cash_prize = entry_has_cash_prize(entry)
     classified = entry.classified_at
     if classified is not None and classified.tzinfo is None:
@@ -84,7 +86,7 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
         "tags": tag_objects,
         "title": entry.title,
         "description": entry.description,
-        "deadline": entry.deadline,
+        "deadline": resolved_deadline,
         "deadlineLabel": deadline_meta["label"],
         "deadlineUrgent": deadline_meta["urgent"],
         "hasCashPrize": cash_prize,

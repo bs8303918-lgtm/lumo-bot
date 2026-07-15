@@ -6,7 +6,9 @@ import re
 from datetime import date, datetime, timedelta, timezone
 
 from db.models import CatalogOpportunity
+from llm.deadline import resolve_entry_deadline
 from services.catalog_freshness import message_posted_at
+from services.message_freshness import raw_message_anchor_date
 from services.interest_matcher import _entry_has_cash_prize
 
 _RU_MONTHS = (
@@ -90,6 +92,24 @@ def format_deadline_label(deadline: str | None, *, is_archived: bool = False) ->
         return {"label": text, "urgent": True}
 
     return {"label": text, "urgent": False}
+
+
+def entry_resolved_deadline(entry: CatalogOpportunity) -> str:
+    anchor = None
+    raw = getattr(entry, "raw_message", None)
+    if raw is not None:
+        anchor = raw_message_anchor_date(raw)
+    return resolve_entry_deadline(
+        entry.deadline,
+        title=entry.title or "",
+        description=entry.description or "",
+        requirements=entry.requirements or "",
+        anchor_date=anchor,
+    )
+
+
+def format_entry_deadline_label(entry: CatalogOpportunity, *, is_archived: bool = False) -> dict:
+    return format_deadline_label(entry_resolved_deadline(entry), is_archived=is_archived)
 
 
 def entry_text_blob(entry: CatalogOpportunity) -> str:

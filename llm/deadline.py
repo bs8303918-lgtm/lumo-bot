@@ -158,6 +158,53 @@ def _parse_cross_month_range(
     return _safe_date(year, end_month, end_day)
 
 
+def is_missing_deadline(value: str | None) -> bool:
+    text = (value or "").strip().lower()
+    return not text or text in _EXPIRED_MARKERS
+
+
+def infer_deadline_from_text(
+    text: str,
+    *,
+    anchor_date: date | None = None,
+) -> str | None:
+    """Извлечь дату из текста поста (часто «08.08» в начале строки)."""
+    if not (text or "").strip():
+        return None
+    for chunk in text.split("\n"):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        parsed = parse_deadline(chunk, anchor_date=anchor_date)
+        if parsed:
+            return parsed.strftime("%d.%m.%Y")
+    parsed = parse_deadline(text, anchor_date=anchor_date)
+    if parsed:
+        return parsed.strftime("%d.%m.%Y")
+    latest = latest_date_in_text(text, for_expiry=True, anchor_date=anchor_date)
+    if latest:
+        return latest.strftime("%d.%m.%Y")
+    return None
+
+
+def resolve_entry_deadline(
+    deadline: str | None,
+    *,
+    title: str = "",
+    description: str = "",
+    requirements: str = "",
+    anchor_date: date | None = None,
+) -> str:
+    text = (deadline or "").strip()
+    if not is_missing_deadline(text) and parse_deadline(text, anchor_date=anchor_date):
+        return text
+    blob = "\n".join(filter(None, [description, title, requirements]))
+    inferred = infer_deadline_from_text(blob, anchor_date=anchor_date)
+    if inferred:
+        return inferred
+    return text or "не указан"
+
+
 def parse_deadline(value: str | None, *, anchor_date: date | None = None) -> date | None:
     if not value:
         return None

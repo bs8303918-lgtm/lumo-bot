@@ -58,3 +58,25 @@ def test_format_deadline_label_unknown():
     meta = format_deadline_label("не указан")
     assert meta["label"] == "не указан"
     assert meta["urgent"] is False
+
+
+def test_resolve_deadline_from_short_date_in_description():
+    from llm.deadline import resolve_entry_deadline
+
+    resolved = resolve_entry_deadline(
+        "не указан",
+        description="08.08 🏆 Startup World Cup Kazakhstan 2026 @ NU",
+    )
+    assert resolved == "08.08.2026"
+
+
+def test_format_entry_deadline_from_description():
+    from services.catalog_display import format_entry_deadline_label
+
+    entry = _entry(
+        deadline="не указан",
+        description="02.08 🥤 10 грантов по 1 000 000 ₸ от Coca-Cola",
+    )
+    meta = format_entry_deadline_label(entry)
+    assert meta["label"] == "02.08.2026"
+    assert meta["urgent"] is False
