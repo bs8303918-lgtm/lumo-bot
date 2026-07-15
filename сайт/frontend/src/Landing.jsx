@@ -4,7 +4,7 @@ import { ArrowRight, Bell, ChevronDown, Globe, Zap } from 'lucide-react';
 import LumoLogo from './components/LumoLogo.jsx';
 import LandingLanguageSwitcher from './components/LandingLanguageSwitcher';
 import { TestimonialsSection } from './components/TestimonialsSection';
-import { Pricing } from '@/components/ui/pricing';
+import ConsultationSection from './components/ConsultationSection.jsx';
 import { LandingLanguageProvider, useLandingLanguage } from '@/i18n/LandingLanguageContext';
 
 const BOT_URL = 'https://t.me/LumoAI1bot';
@@ -32,8 +32,8 @@ function Navbar({ scrolled }) {
           <a href="#contests" className="hover:text-neutral-900 transition-colors">
             {t.nav.contests}
           </a>
-          <a href="#pricing" className="hover:text-neutral-900 transition-colors">
-            {t.nav.pricing}
+          <a href="#consultation" className="hover:text-neutral-900 transition-colors">
+            {t.nav.consultation}
           </a>
         </nav>
 
@@ -160,21 +160,6 @@ function SocialProofSection() {
   );
 }
 
-function PricingSection() {
-  const { t } = useLandingLanguage();
-
-  return (
-    <section id="pricing" className="border-t border-neutral-200 bg-white">
-      <Pricing
-        variant="light"
-        plans={t.pricing.plans.map((plan) => ({ ...plan }))}
-        title={t.pricing.title}
-        description={t.pricing.description}
-      />
-    </section>
-  );
-}
-
 function ContestCard({ category, title, deadline, prize, labels }) {
   return (
     <div className="p-5 rounded-xl border border-neutral-200 bg-white shadow-sm">
@@ -282,27 +267,6 @@ function FaqSection() {
   );
 }
 
-function FinalCtaSection() {
-  const { t } = useLandingLanguage();
-
-  return (
-    <section className="relative px-5 py-28 md:py-36 overflow-hidden bg-neutral-50 border-t border-neutral-200">
-      <div className="relative max-w-2xl mx-auto text-center">
-        <h2 className="text-3xl md:text-5xl font-bold text-neutral-900 mb-5 tracking-tight leading-tight">
-          {t.finalCta.title}
-        </h2>
-        <p className="text-neutral-500 text-lg mb-10 leading-relaxed">{t.finalCta.subtitle}</p>
-        <Link
-          to="/app?signup=1"
-          className="inline-flex items-center px-10 py-4 rounded-full bg-neutral-900 text-white font-semibold text-lg hover:bg-neutral-800 transition-all shadow-lg shadow-black/10"
-        >
-          {t.finalCta.button}
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 function Footer() {
   const { t } = useLandingLanguage();
 
@@ -345,10 +309,9 @@ function LandingPage() {
       <FeaturesSection />
       <SocialProofSection />
       <TestimonialsSection />
-      <PricingSection />
       <ContestsSection />
       <FaqSection />
-      <FinalCtaSection />
+      <ConsultationSection />
       <Footer />
     </div>
   );

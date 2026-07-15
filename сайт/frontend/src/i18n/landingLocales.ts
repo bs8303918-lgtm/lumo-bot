@@ -17,7 +17,7 @@ export type LandingPricingPlan = {
 };
 
 export type LandingCopy = {
-  nav: { features: string; contests: string; pricing: string; try: string };
+  nav: { features: string; contests: string; consultation: string; try: string };
   hero: {
     badge: string;
     titleLine1: string;
@@ -33,7 +33,21 @@ export type LandingCopy = {
   };
   social: { title: string; subtitle: string; topics: string[] };
   testimonials: { badge: string; title: string; subtitle: string };
-  pricing: { title: string; description: string; plans: LandingPricingPlan[] };
+  consultation: {
+    title: string;
+    titleAccent: string;
+    subtitle: string;
+    namePlaceholder: string;
+    contactPlaceholder: string;
+    interestPlaceholder: string;
+    interests: { id: string; label: string }[];
+    button: string;
+    success: string;
+    contactHint: string;
+    telegram: string;
+    contactError: string;
+    submitError: string;
+  };
   contests: {
     title: string;
     subtitle: string;
@@ -44,7 +58,6 @@ export type LandingCopy = {
     items: { category: string; title: string; deadline: string; prize: string }[];
   };
   faq: { title: string; items: { q: string; a: string }[] };
-  finalCta: { title: string; subtitle: string; button: string };
   footer: { tagline: string; terms: string; privacy: string; contacts: string };
 };
 
@@ -151,7 +164,7 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
     nav: {
       features: 'Возможности',
       contests: 'База конкурсов',
-      pricing: 'Тарифы',
+      consultation: 'Консультация',
       try: 'Попробовать',
     },
     hero: {
@@ -200,10 +213,27 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
       title: 'Что говорят пользователи',
       subtitle: 'Реальные сообщения из Lumo chat.',
     },
-    pricing: {
-      title: 'Тарифы Lumo',
-      description: 'Начни бесплатно с 3 запросами.\nПереходи на платный план, когда нужно больше.',
-      plans: LANDING_PRICING_RU,
+    consultation: {
+      title: 'Не обязан искать вручную —',
+      titleAccent: 'разберём твой профиль',
+      subtitle:
+        'Запишись на бесплатную консультацию. Покажем, какие гранты, хакатоны и стажировки подходят именно тебе — и как не пропускать дедлайны.',
+      namePlaceholder: 'Ваше имя',
+      contactPlaceholder: 'Telegram или телефон',
+      interestPlaceholder: 'Что ищешь?',
+      interests: [
+        { id: 'grants', label: 'Гранты и стипендии' },
+        { id: 'hackathons', label: 'Хакатоны' },
+        { id: 'internships', label: 'Стажировки' },
+        { id: 'admission', label: 'Поступление за рубеж' },
+        { id: 'other', label: 'Другое' },
+      ],
+      button: 'Записаться на консультацию',
+      success: 'Заявка принята! Напишем в Telegram в ближайшее время.',
+      contactHint: 'или напиши в Telegram',
+      telegram: '@LumoAI1bot',
+      contactError: 'Укажи Telegram или телефон',
+      submitError: 'Не удалось отправить заявку',
     },
     contests: {
       title: 'Скрытые возможности',
@@ -236,19 +266,13 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
         },
         {
           q: 'Это платно?',
-          a: 'Старт бесплатный. Базовый поиск, подборки и алерты доступны без оплаты. Расширенные функции — по подписке.',
+          a: 'Консультация и старт в боте — бесплатно. Поможем настроить профиль и покажем, как искать возможности через Lumo.',
         },
         {
           q: 'Только для айтишников?',
           a: 'Нет. Lumo находит гранты, олимпиады, стажировки и конкурсы для любых направлений — от науки и дизайна до бизнеса и спорта.',
         },
       ],
-    },
-    finalCta: {
-      title: 'Хватит упускать шансы',
-      subtitle:
-        'Присоединяйся к 250+ студентам, которые уже находят лучшие гранты и конкурсы первыми.',
-      button: 'Попробовать Lumo',
     },
     footer: {
       tagline: 'Твой ИИ-скаут для грантов и конкурсов. Всегда на связи.',
@@ -261,7 +285,7 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
     nav: {
       features: 'Features',
       contests: 'Opportunities',
-      pricing: 'Pricing',
+      consultation: 'Consultation',
       try: 'Try Lumo',
     },
     hero: {
@@ -310,10 +334,27 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
       title: 'What users say',
       subtitle: 'Real messages from the Lumo community.',
     },
-    pricing: {
-      title: 'Lumo pricing',
-      description: 'Start free with 3 searches.\nUpgrade when you need more.',
-      plans: LANDING_PRICING_EN,
+    consultation: {
+      title: "You don't have to search alone —",
+      titleAccent: "let's map your profile",
+      subtitle:
+        'Book a free consultation. We will show which grants, hackathons, and internships fit you — and how not to miss deadlines.',
+      namePlaceholder: 'Your name',
+      contactPlaceholder: 'Telegram or phone',
+      interestPlaceholder: 'What are you looking for?',
+      interests: [
+        { id: 'grants', label: 'Grants & scholarships' },
+        { id: 'hackathons', label: 'Hackathons' },
+        { id: 'internships', label: 'Internships' },
+        { id: 'admission', label: 'Study abroad' },
+        { id: 'other', label: 'Other' },
+      ],
+      button: 'Book a consultation',
+      success: 'Request received! We will message you on Telegram soon.',
+      contactHint: 'or message us on Telegram',
+      telegram: '@LumoAI1bot',
+      contactError: 'Add Telegram or phone',
+      submitError: 'Could not submit the request',
     },
     contests: {
       title: 'Hidden opportunities',
@@ -346,18 +387,13 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
         },
         {
           q: 'Is it paid?',
-          a: 'You can start for free. Basic search, picks, and alerts are free. Advanced features are on a subscription.',
+          a: 'The consultation and getting started in the bot are free. We will help you set up your profile and show how to search with Lumo.',
         },
         {
           q: 'Is it only for IT students?',
           a: 'No. Lumo covers grants, olympiads, internships, and contests across science, design, business, sports, and more.',
         },
       ],
-    },
-    finalCta: {
-      title: 'Stop missing your shot',
-      subtitle: 'Join 250+ students who already find the best grants and contests first.',
-      button: 'Try Lumo',
     },
     footer: {
       tagline: 'Your AI scout for grants and contests. Always on.',
