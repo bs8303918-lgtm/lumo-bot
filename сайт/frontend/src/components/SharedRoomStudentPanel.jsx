@@ -166,24 +166,46 @@ export default function SharedRoomStudentPanel({ authed, profile, onNeedsAuth, o
   const updateStatus = async (appId, status) => {
     setUpdatingId(appId);
     setError(null);
+    const previous = proposals;
+    setProposals((prev) =>
+      prev.map((item) =>
+        item.id === appId
+          ? {
+              ...item,
+              status,
+              statusLabel:
+                status === 'todo'
+                  ? 'Нужно подать'
+                  : status === 'in_progress'
+                    ? 'В процессе'
+                    : 'Подано',
+            }
+          : item,
+      ),
+    );
     try {
-      const data = await apiFetch(`/rooms/my/proposals/${appId}`, {
-        method: 'PATCH',
+      const data = await apiFetch(`/rooms/my/proposals/${appId}/status`, {
+        method: 'POST',
         body: JSON.stringify({ status }),
       });
       setProposals((prev) =>
         prev.map((item) => (item.id === appId ? data.application : item)),
       );
       setProposalStats((prev) => {
-        const old = proposals.find((p) => p.id === appId);
+        const old = previous.find((p) => p.id === appId);
         const next = { ...prev };
         if (old?.status && next[old.status] > 0) next[old.status] -= 1;
         next[status] = (next[status] || 0) + 1;
         return next;
       });
     } catch (err) {
+      setProposals(previous);
       if (err.needsAuth) onNeedsAuth();
-      else setError(err.message);
+      else if (err.message === 'Failed to fetch') {
+        setError('Нет связи с сервером — попробуй ещё раз через пару секунд');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setUpdatingId(null);
     }

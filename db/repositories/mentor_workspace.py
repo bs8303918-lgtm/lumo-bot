@@ -40,6 +40,19 @@ class MentorWorkspaceRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_application_by_id(
+        self,
+        mentor_user_id: int,
+        app_id: int,
+    ) -> MentorApplication | None:
+        result = await self.session.execute(
+            select(MentorApplication).where(
+                MentorApplication.user_id == mentor_user_id,
+                MentorApplication.id == app_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def list_applications_for_student(
         self,
         mentor_user_id: int,
@@ -50,6 +63,25 @@ class MentorWorkspaceRepository:
             .where(
                 MentorApplication.user_id == mentor_user_id,
                 MentorApplication.student_user_id == student_user_id,
+            )
+            .order_by(MentorApplication.updated_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def list_applications_by_name(
+        self,
+        mentor_user_id: int,
+        student_name: str,
+    ) -> list[MentorApplication]:
+        name = student_name.strip()
+        if not name:
+            return []
+        result = await self.session.execute(
+            select(MentorApplication)
+            .where(
+                MentorApplication.user_id == mentor_user_id,
+                MentorApplication.student_name == name,
+                MentorApplication.student_user_id.is_(None),
             )
             .order_by(MentorApplication.updated_at.desc())
         )

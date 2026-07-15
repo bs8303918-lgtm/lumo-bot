@@ -232,6 +232,9 @@ export async function apiFetch(path, options = {}) {
     if (err?.name === 'AbortError') {
       throw new Error('Запрос занял слишком долго. Проверь Railway и VITE_API_URL.');
     }
+    if (err instanceof TypeError && String(err.message).includes('fetch')) {
+      throw new Error('Failed to fetch');
+    }
     if (err?.message && !err.needsAuth) throw err;
     if (API_BASE) {
       throw new Error(

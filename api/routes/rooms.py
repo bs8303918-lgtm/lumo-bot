@@ -304,6 +304,15 @@ async def student_proposals(
     mentor = await UserRepository(session).get_by_id(room.mentor_id)
     workspace = MentorWorkspaceRepository(session)
     apps = await workspace.list_applications_for_student(room.mentor_id, user.id)
+    legacy = await workspace.list_applications_by_name(room.mentor_id, _display_name(user))
+    seen = {a.id for a in apps}
+    for app in legacy:
+        if app.id not in seen:
+            if not app.student_user_id:
+                app.student_user_id = user.id
+            apps.append(app)
+            seen.add(app.id)
+    await session.flush()
     items = []
     for app in apps:
         try:
@@ -329,6 +338,7 @@ async def student_proposals(
 
 
 @router.patch("/rooms/my/proposals/{app_id}")
+@router.post("/rooms/my/proposals/{app_id}/status")
 async def update_student_proposal(
     app_id: int,
     body: StudentProposalUpdate,
@@ -345,6 +355,13 @@ async def update_student_proposal(
 
     workspace = MentorWorkspaceRepository(session)
     app = await workspace.get_application_for_student(room.mentor_id, user.id, app_id)
+    if not app:
+        app = await workspace.get_application_by_id(room.mentor_id, app_id)
+        if app and not app.student_user_id:
+            app.student_user_id = user.id
+            await session.flush()
+        elif not app or app.student_user_id not in (None, user.id):
+            raise HTTPException(status_code=404, detail="Предложение не найдено")
     if not app:
         raise HTTPException(status_code=404, detail="Предложение не найдено")
 
