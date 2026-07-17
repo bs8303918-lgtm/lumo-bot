@@ -40,7 +40,7 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    configure_supabase_pooler()
+    await configure_supabase_pooler()
     if not is_push_configured():
         print(
             "Set STARTIFY_CATALOG_WEBHOOK_URL and PARTNER_API_KEY in env.\n"
