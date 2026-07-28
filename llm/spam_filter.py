@@ -4,6 +4,7 @@ import re
 _AD_MARKERS = (
     "#реклама",
     "#reklama",
+    "#жарнама",
     "#ad",
     "#advert",
     "#sponsored",
@@ -14,14 +15,15 @@ _AD_MARKERS = (
     " erid\n",
     "информация о рекламодателе",
     "рекламодатель:",
+    "о рекламодателе",
 )
 
 # Типичный спам, не связанный с возможностями Lumo
 _SPAM_PATTERNS = (
     re.compile(r"опрос[ыа]?\s+.{0,40}(?:kzt|тг|тенге|₸|руб|рубл)", re.I),
     re.compile(r"(?:заработ|выплат[аы]).{0,30}(?:смартфон|телефон|kzt|тг|₸)", re.I),
-    re.compile(r"заработ.{0,30}(?:установ|скачива|реферал|приглаш\s+друз)", re.I),
-    re.compile(r"(?:установи|скачай|скачать)\s+.{0,30}(?:браузер|приложени|app).{0,40}заработ", re.I),
+    re.compile(r"зараб[аоеи].{0,30}(?:установ|скачива|реферал|приглаш\s+друз)", re.I),
+    re.compile(r"(?:установи|скачай|скачать)\s+.{0,30}(?:браузер|приложени|app).{0,40}зараб", re.I),
     re.compile(r"focus5g\.com", re.I),
     re.compile(r"начать\s+опрос", re.I),
     re.compile(r"честн[а-я]*\s+оценк[а-я]*\s+товар", re.I),
@@ -208,6 +210,13 @@ def is_likely_consulting_promo(text: str) -> tuple[bool, str | None]:
         and not any(h in lowered for h in ("подать заяв", "deadline", "дедлайн", "регистрац", "apply"))
     ):
         return True, "success_story_review"
+
+    if (
+        re.search(r"(?:получил[аи]?|поступил[аи]?)\s+.{0,40}(?:оффер|университет|grant|scholarship)", lowered)
+        and any(w in lowered for w in ("записыва", "запишись", "консультац"))
+        and not any(h in lowered for h in ("подать заяв", "deadline", "дедлайн", "регистрац", "apply"))
+    ):
+        return True, "success_story_upsell"
 
     return False, None
 
