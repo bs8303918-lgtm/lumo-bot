@@ -99,12 +99,16 @@ async def run_startup_maintenance() -> None:
 
         repo = catalog_repo(session)
         reactivated_ids = await repo.reactivate_all_real_opportunities()
-        if reactivated_ids:
+        deactivated_ids = await repo.deactivate_invalid_active()
+        if reactivated_ids or deactivated_ids:
             await session.commit()
+        if reactivated_ids:
             logger.info("Catalog: reactivated %d previously hidden opportunities", len(reactivated_ids))
             from services.startify_catalog_push import schedule_catalog_push
 
             schedule_catalog_push(reactivated_ids)
+        if deactivated_ids:
+            logger.info("Catalog: hid %d spam/invalid entries", len(deactivated_ids))
 
 
 async def init_database() -> None:
@@ -203,6 +207,7 @@ async def boot(boot_ready: asyncio.Event) -> None:
         logger.error("Schema init failed (API stays up, retry on next deploy): %s", exc)
     boot_ready.set()
     logger.info("Boot gate open — API/workers may start")
+    settings = get_settings()
     try:
         try:
             seeded = await seed_channels_from_file()

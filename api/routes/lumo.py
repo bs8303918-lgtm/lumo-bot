@@ -296,10 +296,8 @@ async def lumo_catalog_bootstrap(
     async def load_counts() -> tuple[dict[str, int], int]:
         async with async_session_factory() as s:
             repo = catalog_repo(s)
-            counts, total = await asyncio.gather(
-                repo.count_active_by_type_for_user(user_id),
-                repo.count_active_for_user(user_id),
-            )
+            counts = await repo.count_active_by_type_for_user(user_id)
+            total = await repo.count_active_for_user(user_id)
             return counts, total
 
     async def load_page() -> list:

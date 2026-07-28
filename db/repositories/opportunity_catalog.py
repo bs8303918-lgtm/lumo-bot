@@ -645,8 +645,42 @@ class OpportunityCatalogRepository:
         return reactivated_ids
 
     async def deactivate_invalid_active(self) -> list[int]:
-        """No-op: keep classified entries visible."""
-        return []
+        """Hide active entries that are spam/digest/rubric/product-news, not real opportunities."""
+        result = await self.session.execute(
+            select(CatalogOpportunity)
+            .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
+            .options(joinedload(CatalogOpportunity.raw_message))
+            .where(CatalogOpportunity.is_active.is_(True))
+            .where(CatalogOpportunity.opportunity_type != "другое")
+        )
+        candidates = list(result.scalars().unique().all())
+        deactivated_ids: list[int] = []
+        for entry in candidates:
+            msg = entry.raw_message
+            source_text = (msg.text if msg else None) or entry.description or ""
+            invalid, _ = is_invalid_opportunity_extraction(
+                {
+                    "is_opportunity": True,
+                    "title": entry.title,
+                    "description": entry.description,
+                    "application_url": entry.application_url,
+                },
+                source_text,
+            )
+            if not invalid:
+                invalid, _ = is_likely_digest_or_roundup(source_text)
+            if not invalid:
+                invalid, _ = is_likely_interview_or_rubric(source_text)
+            if not invalid:
+                invalid, _ = is_likely_product_feature_news(source_text)
+            if not invalid:
+                invalid, _ = is_likely_spam_or_ad(source_text)
+            if invalid:
+                entry.is_active = False
+                deactivated_ids.append(entry.id)
+        if deactivated_ids:
+            await self.session.flush()
+        return deactivated_ids
 
     async def reactivate_all_real_opportunities(self, *, limit: int = 5000) -> list[int]:
         """Turn back on real opportunities that were hidden by old cleanup rules."""
