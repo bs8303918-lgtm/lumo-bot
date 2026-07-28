@@ -203,6 +203,7 @@ async def boot(boot_ready: asyncio.Event) -> None:
         logger.error("Schema init failed (API stays up, retry on next deploy): %s", exc)
     boot_ready.set()
     logger.info("Boot gate open — API/workers may start")
+    settings = get_settings()
     try:
         try:
             seeded = await seed_channels_from_file()

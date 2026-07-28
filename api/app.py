@@ -42,7 +42,11 @@ async def _api_startup_maintenance() -> None:
         await ensure_team_profiles_table()
         await ensure_mentor_workspace_tables()
         await ensure_shared_rooms_tables()
+        logger.info("API startup maintenance finished")
+    except Exception as exc:
+        logger.warning("API startup maintenance: %s", exc)
 
+    try:
         async with async_session_factory() as session:
             await seed_catalog_if_empty(session)
             repo = catalog_repo(session)
@@ -53,9 +57,8 @@ async def _api_startup_maintenance() -> None:
 
                 schedule_catalog_push(reactivated_ids)
                 logger.info("API startup: reactivated %d catalog entries", len(reactivated_ids))
-        logger.info("API startup maintenance finished")
     except Exception as exc:
-        logger.warning("API startup maintenance: %s", exc)
+        logger.warning("Catalog reactivation on startup: %s", exc)
 
 
 @asynccontextmanager
