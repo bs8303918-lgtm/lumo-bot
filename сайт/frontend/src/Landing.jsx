@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Bell, ChevronDown, Globe, Zap } from 'lucide-react';
+import { ArrowRight, Bell, Briefcase, ChevronDown, ClipboardList, FileText, Globe, Sparkles, Zap } from 'lucide-react';
 import LumoLogo from './components/LumoLogo.jsx';
 import LandingLanguageSwitcher from './components/LandingLanguageSwitcher';
 import { TestimonialsSection } from './components/TestimonialsSection';
@@ -10,6 +10,7 @@ import { LandingLanguageProvider, useLandingLanguage } from '@/i18n/LandingLangu
 const BOT_URL = 'https://t.me/LumoAI1bot';
 
 const FEATURE_ICONS = [Zap, Globe, Bell];
+const MENTOR_FEATURE_ICONS = [FileText, ClipboardList, Sparkles];
 
 function Navbar({ scrolled }) {
   const { t } = useLandingLanguage();
@@ -28,6 +29,9 @@ function Navbar({ scrolled }) {
         <nav className="hidden md:flex items-center gap-8 text-sm text-neutral-500">
           <a href="#features" className="hover:text-neutral-900 transition-colors">
             {t.nav.features}
+          </a>
+          <a href="#mentors" className="hover:text-neutral-900 transition-colors">
+            {t.nav.mentors}
           </a>
           <a href="#contests" className="hover:text-neutral-900 transition-colors">
             {t.nav.contests}
@@ -116,6 +120,54 @@ function FeaturesSection() {
               <div
                 key={title}
                 className="p-7 rounded-2xl border border-neutral-200 bg-white hover:border-neutral-300 hover:shadow-md hover:shadow-black/[0.04] transition-all"
+              >
+                <div className="w-10 h-10 mb-5 rounded-xl bg-neutral-900 flex items-center justify-center">
+                  <Icon size={20} className="text-white" strokeWidth={2} />
+                </div>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-3">{title}</h3>
+                <p className="text-neutral-500 text-sm leading-relaxed">{text}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MentorFeaturesSection() {
+  const { t } = useLandingLanguage();
+
+  return (
+    <section id="mentors" className="px-5 py-24 md:py-32 bg-white border-t border-neutral-200">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-full border border-neutral-200 text-xs font-medium text-neutral-600">
+              <Briefcase size={14} />
+              {t.mentorFeatures.badge}
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4 tracking-tight">
+              {t.mentorFeatures.title}
+            </h2>
+            <p className="text-neutral-500 text-lg">{t.mentorFeatures.subtitle}</p>
+          </div>
+          <Link
+            to="/app"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 transition-colors shrink-0"
+          >
+            {t.mentorFeatures.cta}
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-5">
+          {t.mentorFeatures.items.map(({ title, text }, index) => {
+            const Icon = MENTOR_FEATURE_ICONS[index];
+            return (
+              <div
+                key={title}
+                className="p-7 rounded-2xl border border-neutral-200 bg-neutral-50/50 hover:border-neutral-300 hover:shadow-md hover:shadow-black/[0.04] transition-all"
               >
                 <div className="w-10 h-10 mb-5 rounded-xl bg-neutral-900 flex items-center justify-center">
                   <Icon size={20} className="text-white" strokeWidth={2} />
@@ -307,6 +359,7 @@ function LandingPage() {
       <Navbar scrolled={scrolled} />
       <HeroSection />
       <FeaturesSection />
+      <MentorFeaturesSection />
       <SocialProofSection />
       <TestimonialsSection />
       <ContestsSection />

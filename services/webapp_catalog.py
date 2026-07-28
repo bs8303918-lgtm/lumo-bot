@@ -16,6 +16,7 @@ from services.catalog_display import (
     is_entry_new,
     sort_opportunities_by_newest,
 )
+from services.catalog_country import DEFAULT_COUNTRY, normalize_country
 from services.catalog_freshness import is_unknown_deadline, message_posted_at
 from services.interest_matcher import (
     CATEGORY_DISPLAY,
@@ -79,6 +80,7 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
     deadline_meta = format_entry_deadline_label(entry, is_archived=not entry.is_active)
     resolved_deadline = entry_resolved_deadline(entry)
     cash_prize = entry_has_cash_prize(entry)
+    country = normalize_country(getattr(entry, "country", None) or DEFAULT_COUNTRY)
     classified = entry.classified_at
     if classified is not None and classified.tzinfo is None:
         classified = classified.replace(tzinfo=timezone.utc)
@@ -93,6 +95,7 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
         "deadline": resolved_deadline,
         "deadlineLabel": deadline_meta["label"],
         "deadlineUrgent": deadline_meta["urgent"],
+        "country": country,
         "hasCashPrize": cash_prize,
         "cashPrizeLabel": "Денежный приз" if cash_prize else "Без денежного приза",
         "isNew": is_entry_new(entry),

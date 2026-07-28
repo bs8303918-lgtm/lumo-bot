@@ -213,8 +213,25 @@ class LLMClient:
                 _log_llm_failure(exc, health_cache=self._cache_health)
                 return None, raw
 
-    async def classify_opportunity(self, message_text: str) -> tuple[dict | None, str | None]:
-        prompt = CLASSIFICATION_PROMPT.format(message_text=message_text, today=format_today())
+    async def classify_opportunity(
+        self,
+        message_text: str,
+        *,
+        page_url: str | None = None,
+        page_text: str | None = None,
+    ) -> tuple[dict | None, str | None]:
+        page_section = ""
+        if page_text and page_text.strip():
+            url_line = f" ({page_url})" if page_url else ""
+            page_section = (
+                f"\nТекст страницы по ссылке из поста{url_line}:\n"
+                f"{page_text.strip()}\n"
+            )
+        prompt = CLASSIFICATION_PROMPT.format(
+            message_text=message_text,
+            today=format_today(),
+            page_section=page_section,
+        )
         return await self._json_prompt(prompt, max_tokens=1536)
 
     async def extract_interest_categories(

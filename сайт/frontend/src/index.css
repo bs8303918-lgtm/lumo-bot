@@ -283,3 +283,23 @@ body {
     @apply font-sans;
   }
 }
+
+@media print {
+  .shortlist-no-print {
+    display: none !important;
+  }
+
+  .shortlist-page {
+    background: white !important;
+  }
+
+  .shortlist-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .shortlist-link {
+    color: #111 !important;
+    text-decoration: underline !important;
+  }
+}

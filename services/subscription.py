@@ -26,8 +26,8 @@ PLAN_CATALOG: dict[str, dict] = {
         "label": "Бесплатно",
         "durationDays": None,
         "priceKzt": 0,
-        "aiDailyLimit": 0,
-        "description": "Каталог · уведомления · AI по подписке",
+        "aiDailyLimit": 1,
+        "description": "Каталог и фильтры · 1 AI-поиск в день",
         "benefit": None,
     },
     PLAN_TRIAL_7D: {
@@ -175,7 +175,9 @@ def has_ai_access(user: User, *, telegram_id: int | None = None) -> bool:
         return True
     if not settings.subscriptions_enforced:
         return True
-    return is_paid_plan_active(user)
+    if is_paid_plan_active(user):
+        return True
+    return effective_ai_daily_limit(user, telegram_id=telegram_id) > 0
 
 
 def effective_ai_daily_limit(user: User, *, telegram_id: int | None = None) -> int:
@@ -187,7 +189,7 @@ def effective_ai_daily_limit(user: User, *, telegram_id: int | None = None) -> i
     if is_paid_plan_active(user):
         meta = PLAN_CATALOG.get(user.tariff_plan or "", {})
         return int(meta.get("aiDailyLimit") or 999)
-    return 0
+    return settings.ai_search_daily_limit
 
 
 def subscription_status(user: User) -> dict:

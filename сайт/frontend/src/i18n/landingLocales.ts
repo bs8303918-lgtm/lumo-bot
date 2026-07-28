@@ -17,7 +17,7 @@ export type LandingPricingPlan = {
 };
 
 export type LandingCopy = {
-  nav: { features: string; contests: string; consultation: string; try: string };
+  nav: { features: string; mentors: string; contests: string; consultation: string; try: string };
   hero: {
     badge: string;
     titleLine1: string;
@@ -29,6 +29,13 @@ export type LandingCopy = {
   features: {
     title: string;
     subtitle: string;
+    items: { title: string; text: string }[];
+  };
+  mentorFeatures: {
+    badge: string;
+    title: string;
+    subtitle: string;
+    cta: string;
     items: { title: string; text: string }[];
   };
   social: { title: string; subtitle: string; topics: string[] };
@@ -163,6 +170,7 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
   ru: {
     nav: {
       features: 'Возможности',
+      mentors: 'Для менторов',
       contests: 'База конкурсов',
       consultation: 'Консультация',
       try: 'Попробовать',
@@ -191,6 +199,27 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
         {
           title: 'Умные алерты',
           text: 'Lumo напомнит о дедлайне подачи заявки и подсветит возможности по твоему профилю.',
+        },
+      ],
+    },
+    mentorFeatures: {
+      badge: 'MVP для агентств',
+      title: 'Инструменты для менторов и агентств',
+      subtitle:
+        'Одно окно вместо Notion, Excel и длинных сообщений в Telegram — дедлайны, подборки и аргументы для клиента.',
+      cta: 'Открыть в приложении',
+      items: [
+        {
+          title: 'Shortlist за 1 клик',
+          text: 'ИИ-подборка превращается в брендированную страницу с логотипом агентства. Клиенту — ссылка или PDF через печать.',
+        },
+        {
+          title: 'Канбан дедлайнов',
+          text: 'Статусы «Нужно подать», «В процессе», «Подано» по всем студентам. Владелец агентства видит общую картину.',
+        },
+        {
+          title: 'ИИ-оценка шансов',
+          text: 'Процент вероятности прохождения и список пробелов в портфолио — чтобы аргументировать выбор программ.',
         },
       ],
     },
@@ -284,6 +313,7 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
   en: {
     nav: {
       features: 'Features',
+      mentors: 'For mentors',
       contests: 'Opportunities',
       consultation: 'Consultation',
       try: 'Try Lumo',
@@ -312,6 +342,27 @@ export const LANDING_COPY: Record<LandingLocale, LandingCopy> = {
         {
           title: 'Smart alerts',
           text: 'Lumo reminds you before deadlines and highlights matches for your profile.',
+        },
+      ],
+    },
+    mentorFeatures: {
+      badge: 'Agency MVP',
+      title: 'Tools for mentors and agencies',
+      subtitle:
+        'One workspace instead of Notion, Excel, and long Telegram threads — deadlines, shortlists, and client-ready arguments.',
+      cta: 'Open in app',
+      items: [
+        {
+          title: 'One-click shortlist',
+          text: 'AI-matched programs become a branded page with your agency name. Share a link or save as PDF via print.',
+        },
+        {
+          title: 'Deadline kanban',
+          text: 'Statuses: To apply, In progress, Submitted — across all students. Agency owners see the full pipeline.',
+        },
+        {
+          title: 'AI fit score',
+          text: 'Pass probability and portfolio gaps — so mentors can justify program choices with data.',
         },
       ],
     },

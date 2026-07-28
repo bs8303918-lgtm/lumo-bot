@@ -46,16 +46,13 @@ async def _api_startup_maintenance() -> None:
         async with async_session_factory() as session:
             await seed_catalog_if_empty(session)
             repo = catalog_repo(session)
-            await repo.archive_stale_unclassified(limit=200)
-            expired_ids = await repo.deactivate_expired()
-            stale_ids = await repo.deactivate_stale_without_deadline()
-            old_ids = await repo.deactivate_old_posts()
+            reactivated_ids = await repo.reactivate_all_real_opportunities()
             await session.commit()
-            deactivated_ids = list(dict.fromkeys([*expired_ids, *stale_ids, *old_ids]))
-            if deactivated_ids:
-                from services.startify_catalog_push import schedule_catalog_deactivate
+            if reactivated_ids:
+                from services.startify_catalog_push import schedule_catalog_push
 
-                schedule_catalog_deactivate(deactivated_ids)
+                schedule_catalog_push(reactivated_ids)
+                logger.info("API startup: reactivated %d catalog entries", len(reactivated_ids))
         logger.info("API startup maintenance finished")
     except Exception as exc:
         logger.warning("API startup maintenance: %s", exc)

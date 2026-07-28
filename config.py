@@ -57,8 +57,9 @@ class Settings(BaseSettings):
     max_user_channels: int = 5
     monitor_interval_minutes: int = 1440
     monitor_initial_posts_limit: int = 10
-    monitor_initial_max_age_days: int = 7
-    catalog_no_deadline_max_age_days: int = 7
+    # Legacy — age cutoffs disabled; kept for env compatibility
+    monitor_initial_max_age_days: int = 365
+    catalog_no_deadline_max_age_days: int = 365
     llm_max_concurrent: int = 1
     llm_processor_interval_seconds: int = 1200
     llm_health_check_interval_seconds: int = 3600
@@ -73,6 +74,10 @@ class Settings(BaseSettings):
     llm_enable_pair_relevance: bool = False
     llm_interest_categorization: bool = True
     llm_catalog_match_rerank: bool = True
+    # Читать HTML-страницы по ссылкам из постов (youthop.com и др.) перед классификацией
+    page_fetch_enabled: bool = True
+    page_fetch_timeout_seconds: float = 10.0
+    page_fetch_max_chars: int = 8000
     llm_request_delay_seconds: float = 5.0
     llm_429_max_retries: int = 1
     llm_429_retry_base_seconds: float = 8.0
@@ -86,7 +91,11 @@ class Settings(BaseSettings):
     catalog_notify_min_score: float = 3.0
     telethon_request_delay_seconds: float = 2.0
     require_public_channels: bool = True
-    ai_search_daily_limit: int = 3
+    ai_search_daily_limit: int = 1
+    # Классифицировать посты в каталог старше llm_max_message_age_days (до этого числа дней)
+    llm_classify_max_age_days: int = 60
+    # Удалять просроченные raw_messages без матчей (каскадом тянет catalog) — держать выключенным
+    catalog_purge_raw_messages: bool = False
     subscription_reminder_interval_seconds: int = 3600
 
     # Partner B2B (AI Startify) — true = AI только по подписке / trial
@@ -251,7 +260,7 @@ class Settings(BaseSettings):
         base = self.telegram_webapp_base_url
         if not base:
             return ""
-        return f"{base}/?v={webapp_cache_bust()}"
+        return f"{base}/?view=catalog&v={webapp_cache_bust()}"
 
     @property
     def telegram_webapp_pricing_url(self) -> str:

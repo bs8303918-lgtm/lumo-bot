@@ -328,7 +328,7 @@ async def lumo_opportunities(
     category: str | None = Query(default=None),
     types: str | None = Query(default=None, description="Comma-separated opportunity types"),
     q: str | None = Query(default=None),
-    sort: str = Query(default="newest", pattern="^(newest|deadline)$"),
+    sort: str = Query(default="deadline", pattern="^(newest|deadline)$"),
     cash_prize: str = Query(default="any", pattern="^(any|yes|no)$"),
     limit: int = Query(default=20, ge=1, le=50),
     page_size: int | None = Query(default=None, ge=1, le=50),
@@ -434,13 +434,14 @@ async def lumo_match(
     if len(query) < 3:
         raise HTTPException(status_code=422, detail="Опиши запрос подробнее")
 
+    await enforce_ai_search_limit(
+        session,
+        catalog_user.id,
+        telegram_id=catalog_user.telegram_id,
+    )
+
     save_profile = payload.saveInterest and len(query) >= INTEREST_MIN_LENGTH
     if save_profile:
-        await enforce_ai_search_limit(
-            session,
-            catalog_user.id,
-            telegram_id=catalog_user.telegram_id,
-        )
         await _persist_interest(session, catalog_user, query, skip_llm=False)
 
     items, cat_list, _raw_categories = await _search_catalog(
@@ -461,15 +462,14 @@ async def lumo_match(
     else:
         message = "По этому запросу пока ничего не нашёл."
 
-    if save_profile:
-        background_tasks.add_task(
-            run_interest_side_effects,
-            catalog_user.id,
-            query,
-            results_count=count,
-            profile_changed=False,
-            log_ai_search=True,
-        )
+    background_tasks.add_task(
+        run_interest_side_effects,
+        catalog_user.id,
+        query,
+        results_count=count,
+        profile_changed=False,
+        log_ai_search=True,
+    )
 
     return {
         "query": query,

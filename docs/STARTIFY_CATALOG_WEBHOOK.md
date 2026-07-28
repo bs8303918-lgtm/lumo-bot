@@ -76,6 +76,7 @@ Content-Type: application/json
     "title": "Название конкурса",
     "description": "Краткое описание",
     "deadline": "15.07.2026",
+    "country": "Казахстан",
     "sourceChannelName": "Startup Channel",
     "requirements": "9–11 класс",
     "applicationUrl": "https://example.com/apply",

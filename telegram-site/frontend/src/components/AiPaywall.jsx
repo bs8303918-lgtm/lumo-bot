@@ -10,10 +10,9 @@ export default function AiPaywall({ meta, onOpenPriceList }) {
         <div className="flex justify-center mb-3">
           <Sparkles size={28} style={{ color: 'var(--lumo-accent)' }} />
         </div>
-        <h1 className="text-[20px] font-bold mb-2">AI-поиск по подписке</h1>
+        <h1 className="text-[20px] font-bold mb-2">AI-поиск недоступен</h1>
         <p className="text-[14px] leading-relaxed mb-4" style={{ color: 'var(--lumo-text-muted)' }}>
-          Lumo перешёл на платный режим. Без подписки AI-поиск недоступен — каталог в соседней вкладке
-          открыт.
+          Каталог с фильтрами открыт бесплатно. Для AI-поиска оформи подписку или trial.
         </p>
         <div
           className="rounded-2xl px-4 py-3 mb-4 text-[13px] text-left"

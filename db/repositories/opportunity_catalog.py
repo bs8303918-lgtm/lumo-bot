@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import attributes as orm_attributes, joinedload
 
 from db.models import CatalogOpportunity, MonitoredChannel, RawMessage, User
-from llm.deadline import is_opportunity_expired, resolve_entry_deadline
+from llm.deadline import resolve_entry_deadline
 from llm.json_utils import coerce_llm_dict
 from llm.spam_filter import (
     is_invalid_opportunity_extraction,
@@ -16,7 +16,11 @@ from llm.spam_filter import (
     is_likely_spam_or_ad,
 )
 from services.catalog_dedup import catalog_dedupe_keys
-from services.catalog_freshness import filter_fresh_entries, is_unknown_deadline
+from services.catalog_freshness import (
+    filter_fresh_entries,
+    is_catalog_deadline_expired,
+)
+from services.catalog_country import resolve_catalog_country
 from services.interest_matcher import (
     OPPORTUNITY_TYPES,
     build_opportunity_tags,
@@ -26,10 +30,8 @@ from services.interest_matcher import (
 )
 from services.opportunity_type import refine_opportunity_type
 from services.message_freshness import (
-    is_raw_message_too_old,
-    is_raw_message_too_old_for_llm,
+    llm_classify_max_age_days,
     llm_max_message_age_days,
-    monitor_max_message_age_days,
     raw_message_anchor_date,
 )
 
@@ -56,7 +58,7 @@ class OpportunityCatalogRepository:
     ) -> list[tuple[RawMessage, MonitoredChannel]]:
         """Только свежие неклассифицированные посты (для LLM — по умолчанию llm_max_message_age_days)."""
         classified_ids = select(CatalogOpportunity.raw_message_id)
-        days = max_age_days if max_age_days is not None else llm_max_message_age_days()
+        days = max_age_days if max_age_days is not None else llm_classify_max_age_days()
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         result = await self.session.execute(
             select(RawMessage, MonitoredChannel)
@@ -73,7 +75,7 @@ class OpportunityCatalogRepository:
         self, *, max_age_days: int | None = None, limit: int = 100
     ) -> int:
         """Пометить старые посты как «не возможность» без вызова LLM."""
-        days = max_age_days if max_age_days is not None else llm_max_message_age_days()
+        days = max_age_days if max_age_days is not None else llm_classify_max_age_days()
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         classified_ids = select(CatalogOpportunity.raw_message_id)
         result = await self.session.execute(
@@ -119,29 +121,8 @@ class OpportunityCatalogRepository:
         return None
 
     async def deactivate_duplicates(self) -> list[int]:
-        """Оставить одну активную запись на название/ссылку — новее важнее."""
-        result = await self.session.execute(
-            select(CatalogOpportunity)
-            .where(CatalogOpportunity.is_active.is_(True))
-            .order_by(CatalogOpportunity.classified_at.desc())
-        )
-        seen_keys: set[str] = set()
-        deactivated_ids: list[int] = []
-        for entry in result.scalars():
-            try:
-                keys = catalog_dedupe_keys(entry.title, entry.application_url, entry.description)
-            except (ValueError, TypeError):
-                continue
-            if not keys:
-                continue
-            if keys & seen_keys:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-                continue
-            seen_keys |= keys
-        if deactivated_ids:
-            await self.session.flush()
-        return deactivated_ids
+        """No-op: duplicates are not auto-hidden."""
+        return []
 
     async def create(
         self,
@@ -202,37 +183,14 @@ class OpportunityCatalogRepository:
             requirements=data.get("requirements") or "",
             anchor_date=anchor,
         )
-        if is_raw_message_too_old(raw_message) or is_raw_message_too_old_for_llm(raw_message):
-            entry = CatalogOpportunity(
-                raw_message_id=raw_message.id,
-                opportunity_type=opp_type,
-                tags_json=tags_json,
-                title=data.get("title") or "—",
-                deadline=deadline,
-                description=data.get("description") or "",
-                source_channel_name=channel.channel_title or channel.channel_identifier,
-                message_link=raw_message.message_link,
-                is_active=False,
-            )
-            self.session.add(entry)
-            await self.session.flush()
-            return entry
-        if is_opportunity_expired(deadline, raw_message.text, anchor_date=anchor):
-            entry = CatalogOpportunity(
-                raw_message_id=raw_message.id,
-                opportunity_type=opp_type,
-                tags_json=tags_json,
-                title=data.get("title") or "—",
-                deadline=deadline,
-                description=data.get("description") or "",
-                source_channel_name=channel.channel_title or channel.channel_identifier,
-                message_link=raw_message.message_link,
-                is_active=False,
-            )
-            self.session.add(entry)
-            await self.session.flush()
-            return entry
-
+        country = resolve_catalog_country(
+            data.get("country"),
+            channel_identifier=channel.channel_identifier,
+            channel_title=channel.channel_title,
+            title=data.get("title") or "",
+            description=(data.get("description") or raw_message.text or "")[:500],
+            requirements=data.get("requirements") or "",
+        )
         title = data.get("title") or "Возможность"
         application_url = data.get("application_url")
         description = data.get("description") or raw_message.text[:500]
@@ -247,6 +205,7 @@ class OpportunityCatalogRepository:
                 deadline=deadline,
                 description=description,
                 requirements=data.get("requirements"),
+                country=country,
                 application_url=application_url,
                 source_channel_name=channel.channel_title or channel.channel_identifier,
                 message_link=raw_message.message_link,
@@ -264,6 +223,7 @@ class OpportunityCatalogRepository:
             deadline=deadline,
             description=description,
             requirements=data.get("requirements"),
+            country=country,
             application_url=application_url,
             source_channel_name=channel.channel_title or channel.channel_identifier,
             message_link=raw_message.message_link,
@@ -284,6 +244,7 @@ class OpportunityCatalogRepository:
         deadline: str,
         application_url: str | None = None,
         requirements: str | None = None,
+        country: str | None = None,
     ) -> CatalogOpportunity:
         """Admin-approved user submission — skip LLM/spam pipeline."""
         raw_type = opportunity_type.lower().strip()
@@ -306,6 +267,14 @@ class OpportunityCatalogRepository:
             opp_tags = [custom_label] + [t for t in opp_tags if t != custom_label]
             if opp_type == "другое" and len(opp_tags) == 1:
                 opp_tags = [custom_label]
+        resolved_country = resolve_catalog_country(
+            country,
+            channel_identifier=channel.channel_identifier,
+            channel_title=channel.channel_title,
+            title=title,
+            description=description,
+            requirements=requirements or "",
+        )
         entry = CatalogOpportunity(
             raw_message_id=raw_message.id,
             opportunity_type=opp_type,
@@ -314,6 +283,7 @@ class OpportunityCatalogRepository:
             deadline=deadline or "не указан",
             description=description,
             requirements=requirements,
+            country=resolved_country,
             application_url=application_url,
             source_channel_name=channel.channel_title or channel.channel_identifier,
             message_link=raw_message.message_link,
@@ -589,86 +559,53 @@ class OpportunityCatalogRepository:
         return result.scalar_one_or_none()
 
     async def deactivate_expired(self) -> list[int]:
-        result = await self.session.execute(
-            select(CatalogOpportunity, RawMessage.text, RawMessage.posted_at, RawMessage.fetched_at)
-            .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
-            .where(CatalogOpportunity.is_active.is_(True))
-        )
-        deactivated_ids: list[int] = []
-        for entry, source_text, posted_at, fetched_at in result.all():
-            anchor = posted_at.date() if posted_at is not None else None
-            text = source_text or entry.description or ""
-            if is_opportunity_expired(entry.deadline, text, anchor_date=anchor):
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-        if deactivated_ids:
-            await self.session.flush()
-        return deactivated_ids
+        """No-op: catalog entries are not hidden by deadline."""
+        return []
 
     async def deactivate_old_posts(self, max_age_days: int | None = None) -> list[int]:
-        """Скрыть каталог по постам старше N дней (независимо от дедлайна)."""
-        days = max_age_days if max_age_days is not None else monitor_max_message_age_days()
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-        result = await self.session.execute(
-            select(CatalogOpportunity, RawMessage.posted_at, RawMessage.fetched_at)
-            .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
-            .where(CatalogOpportunity.is_active.is_(True))
-        )
-        deactivated_ids: list[int] = []
-        for entry, posted_at, fetched_at in result.all():
-            if posted_at is None:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-                continue
-            ref = posted_at
-            if ref.tzinfo is None:
-                ref = ref.replace(tzinfo=timezone.utc)
-            if ref < cutoff:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-        if deactivated_ids:
-            await self.session.flush()
-        return deactivated_ids
+        """No-op: catalog visibility is deadline-based only."""
+        del max_age_days
+        return []
 
     async def deactivate_stale_without_deadline(self) -> list[int]:
-        """Hide old posts with no deadline (e.g. April announcements still marked active)."""
-        result = await self.session.execute(
-            select(CatalogOpportunity, RawMessage.posted_at, RawMessage.fetched_at)
-            .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
-            .where(CatalogOpportunity.is_active.is_(True))
-        )
-        deactivated_ids: list[int] = []
-        cutoff = datetime.now(timezone.utc) - timedelta(days=self.no_deadline_max_age_days)
-        for entry, posted_at, fetched_at in result.all():
-            if posted_at is None:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-                continue
-            post_date = posted_at
-            anchor = post_date.date() if post_date else None
-            if not is_unknown_deadline(entry.deadline, anchor_date=anchor):
-                continue
-            if is_opportunity_expired(entry.deadline, entry.description or "", anchor_date=anchor):
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-                continue
-            if post_date.tzinfo is None:
-                post_date = post_date.replace(tzinfo=timezone.utc)
-            if post_date < cutoff:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-        if deactivated_ids:
-            await self.session.flush()
-        return deactivated_ids
+        """No-op: entries without a deadline stay visible."""
+        return []
 
-    async def deactivate_invalid_active(self) -> list[int]:
+    async def reactivate_open_entries(self, *, limit: int = 2000) -> list[int]:
+        """Re-enable real opportunities that were hidden by age cutoffs."""
         result = await self.session.execute(
-            select(CatalogOpportunity, RawMessage.text)
+            select(CatalogOpportunity)
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
-            .where(CatalogOpportunity.is_active.is_(True))
+            .options(joinedload(CatalogOpportunity.raw_message))
+            .where(CatalogOpportunity.is_active.is_(False))
+            .where(CatalogOpportunity.opportunity_type != "другое")
+            .where(CatalogOpportunity.title != "—")
+            .order_by(CatalogOpportunity.id.desc())
+            .limit(limit)
         )
-        deactivated_ids: list[int] = []
-        for entry, source_text in result.all():
+        candidates = list(result.scalars().unique().all())
+        reactivated_ids: list[int] = []
+        seen_keys: set[str] = set()
+
+        # Prefer already-active rows when checking duplicates.
+        active_result = await self.session.execute(
+            select(CatalogOpportunity)
+            .where(CatalogOpportunity.is_active.is_(True))
+            .where(CatalogOpportunity.opportunity_type != "другое")
+        )
+        for active in active_result.scalars().all():
+            seen_keys.update(
+                catalog_dedupe_keys(
+                    active.title, active.application_url, active.description or ""
+                )
+            )
+
+        for entry in candidates:
+            msg = entry.raw_message
+            anchor = msg.posted_at.date() if msg and msg.posted_at else None
+            if is_catalog_deadline_expired(entry.deadline, anchor_date=anchor):
+                continue
+            source_text = (msg.text if msg else None) or entry.description or ""
             invalid, _ = is_invalid_opportunity_extraction(
                 {
                     "is_opportunity": True,
@@ -679,31 +616,55 @@ class OpportunityCatalogRepository:
                 source_text,
             )
             if invalid:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
                 continue
-            is_digest, _ = is_likely_digest_or_roundup(source_text or "")
+            is_digest, _ = is_likely_digest_or_roundup(source_text)
             if is_digest:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
                 continue
-            is_rubric, _ = is_likely_interview_or_rubric(source_text or "")
+            is_rubric, _ = is_likely_interview_or_rubric(source_text)
             if is_rubric:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
                 continue
-            is_product_news, _ = is_likely_product_feature_news(source_text or "")
+            is_product_news, _ = is_likely_product_feature_news(source_text)
             if is_product_news:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
                 continue
-            title_lower = (entry.title or "").lower()
-            if title_lower.startswith("test ") or "test hackathon" in title_lower:
-                entry.is_active = False
-                deactivated_ids.append(entry.id)
-        if deactivated_ids:
+            is_spam, _ = is_likely_spam_or_ad(source_text)
+            if is_spam:
+                continue
+
+            keys = catalog_dedupe_keys(
+                entry.title, entry.application_url, entry.description or ""
+            )
+            if keys & seen_keys:
+                continue
+
+            entry.is_active = True
+            reactivated_ids.append(entry.id)
+            seen_keys.update(keys)
+
+        if reactivated_ids:
             await self.session.flush()
-        return deactivated_ids
+        return reactivated_ids
+
+    async def deactivate_invalid_active(self) -> list[int]:
+        """No-op: keep classified entries visible."""
+        return []
+
+    async def reactivate_all_real_opportunities(self, *, limit: int = 5000) -> list[int]:
+        """Turn back on real opportunities that were hidden by old cleanup rules."""
+        result = await self.session.execute(
+            select(CatalogOpportunity)
+            .where(CatalogOpportunity.is_active.is_(False))
+            .where(CatalogOpportunity.opportunity_type != "другое")
+            .where(CatalogOpportunity.title != "—")
+            .order_by(CatalogOpportunity.id.desc())
+            .limit(limit)
+        )
+        reactivated_ids: list[int] = []
+        for entry in result.scalars():
+            entry.is_active = True
+            reactivated_ids.append(entry.id)
+        if reactivated_ids:
+            await self.session.flush()
+        return reactivated_ids
 
     async def reclassify_active_types(self) -> int:
         """Fix misclassified types and rebuild multi-tags for active entries."""

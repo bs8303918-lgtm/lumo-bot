@@ -115,6 +115,7 @@ async def approve_submission(session: AsyncSession, submission_id: int) -> Catal
         description=_build_description(submission) or title,
         deadline=_format_deadline(submission.deadline),
         application_url=(submission.link or "").strip() or None,
+        country=(submission.location or "").strip() or None,
     )
 
     await repo.mark_reviewed(submission, status="approved", catalog_id=entry.id)

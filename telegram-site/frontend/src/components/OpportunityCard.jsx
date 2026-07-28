@@ -6,7 +6,13 @@ import { CardMatchFeedback } from './SearchFeedback';
 
 export default function OpportunityCard({ item, onOpen, feedbackQuery, feedbackCategories }) {
   const tags = itemTags(item);
-  const deadline = formatDeadlineMeta(item.deadline);
+  const deadline = item.deadlineLabel
+    ? {
+        label: item.deadlineLabel,
+        urgent: Boolean(item.deadlineUrgent),
+        icon: item.deadlineUrgent ? 'clock' : 'calendar',
+      }
+    : formatDeadlineMeta(item.deadline);
   const handle = sourceHandle(item);
 
   return (
@@ -34,11 +40,18 @@ export default function OpportunityCard({ item, onOpen, feedbackQuery, feedbackC
           {deadline.icon === 'clock' ? <Clock size={13} className="shrink-0" /> : <Calendar size={13} className="shrink-0" />}
           <span className="truncate">{deadline.label}</span>
         </div>
-        {handle && (
-          <span className="shrink-0 font-medium truncate max-w-[45%]" style={{ color: 'var(--lumo-link)' }}>
-            {handle}
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0 max-w-[55%] justify-end">
+          {item.country && (
+            <span className="font-medium truncate" style={{ color: 'var(--lumo-text-muted)' }}>
+              {item.country}
+            </span>
+          )}
+          {handle && (
+            <span className="font-medium truncate" style={{ color: 'var(--lumo-link)' }}>
+              {handle}
+            </span>
+          )}
+        </div>
       </div>
 
       {feedbackQuery && (

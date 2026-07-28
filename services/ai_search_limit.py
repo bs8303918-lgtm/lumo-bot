@@ -6,14 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from analytics.event_types import AI_SEARCH
 from config import get_settings
 from db.repositories.users import EventRepository
-from services.subscription import effective_ai_daily_limit, has_ai_access
+from services.subscription import effective_ai_daily_limit, is_paid_plan_active
 
 # Казахстан (UTC+5), без zoneinfo/tzdata — работает на Windows
 _KZ = timezone(timedelta(hours=5))
-
-_SUBSCRIPTION_REQUIRED_MSG = (
-    "Нужна подписка. Подключи 7 дней бесплатно — напиши @taton4i в Telegram."
-)
 
 
 def ai_search_day_start_utc() -> datetime:
@@ -34,13 +30,13 @@ async def ai_search_usage(
         from db.repositories.users import UserRepository
 
         user = await UserRepository(session).get_by_id(user_id)
-    if user is not None and not has_ai_access(user, telegram_id=telegram_id):
-        return {"used": 0, "limit": 0, "remaining": 0}
     limit = (
         effective_ai_daily_limit(user, telegram_id=telegram_id)
         if user is not None
         else settings.ai_search_daily_limit
     )
+    if limit <= 0:
+        return {"used": 0, "limit": 0, "remaining": 0}
     if telegram_id is not None and settings.is_admin(telegram_id):
         return {"used": 0, "limit": limit, "remaining": 999999}
     used = await EventRepository(session).count_user_events_since(
@@ -62,33 +58,23 @@ async def enforce_ai_search_limit(
     from db.repositories.users import UserRepository
 
     user = await UserRepository(session).get_by_id(user_id)
-    if user is not None and settings.subscriptions_enforced and not has_ai_access(
-        user, telegram_id=telegram_id
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=_SUBSCRIPTION_REQUIRED_MSG,
-            headers={
-                "X-Lumo-Show-Pricing": "1",
-                "X-Lumo-Needs-Subscription": "1",
-            },
-        )
     stats = await ai_search_usage(session, user_id, telegram_id=telegram_id, user=user)
-    if stats["remaining"] <= 0 and stats["limit"] > 0:
+    if stats["remaining"] <= 0:
+        if user is not None and settings.subscriptions_enforced and not is_paid_plan_active(user):
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Лимит AI-поиска: {stats['limit']} раз в день. "
+                    "Каталог и фильтры доступны без ограничений. "
+                    "Подписка — безлимитный AI."
+                ),
+                headers={"X-Lumo-Show-Pricing": "1"},
+            )
         raise HTTPException(
             status_code=429,
             detail=(
                 f"Лимит AI-поиска: {stats['limit']} раза в день. "
-                "Оформи подписку для безлимитного доступа или попробуй завтра."
+                "Попробуй завтра или оформи подписку."
             ),
             headers={"X-Lumo-Show-Pricing": "1"},
-        )
-    if stats["remaining"] <= 0:
-        raise HTTPException(
-            status_code=403,
-            detail=_SUBSCRIPTION_REQUIRED_MSG,
-            headers={
-                "X-Lumo-Show-Pricing": "1",
-                "X-Lumo-Needs-Subscription": "1",
-            },
         )

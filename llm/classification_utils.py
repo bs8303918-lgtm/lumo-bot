@@ -14,6 +14,7 @@ def _pick_fields(source: dict[str, Any]) -> dict[str, Any]:
         "deadline": source.get("deadline"),
         "description": source.get("description"),
         "requirements": source.get("requirements"),
+        "country": source.get("country"),
         "application_url": source.get("application_url"),
     }
 

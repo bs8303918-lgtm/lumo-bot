@@ -19,6 +19,7 @@ from config import get_settings
 from db.base import async_session_factory
 from db.models import CatalogOpportunity
 from db.repositories.opportunity_catalog import OpportunityCatalogRepository
+from services.catalog_country import DEFAULT_COUNTRY, normalize_country
 from services.webapp_catalog import (
     clean_source_name,
     dedupe_opportunities,
@@ -107,6 +108,7 @@ def serialize_for_startify(entry: CatalogOpportunity, *, is_active: bool | None 
         "title": title,
         "description": description,
         "deadline": deadline,
+        "country": normalize_country(getattr(entry, "country", None) or DEFAULT_COUNTRY),
         "requirements": (entry.requirements or None),
         "applicationUrl": app_url or None,
         "messageLink": msg_link or None,

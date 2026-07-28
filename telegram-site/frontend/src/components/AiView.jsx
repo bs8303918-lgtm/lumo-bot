@@ -25,8 +25,9 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
   const [result, setResult] = useState(null);
 
   const isAdmin = profile?.isAdmin;
-  const enforced = Boolean(meta?.subscriptionsEnforced || profile?.subscription?.enforced);
   const hasAccess = isAdmin || profile?.hasAiAccess || profile?.subscription?.hasAiAccess || profile?.subscription?.isActive;
+  const aiRemaining = profile?.aiSearchRemaining ?? null;
+  const aiLimit = profile?.aiSearchLimit ?? meta?.aiSearchDailyLimit ?? 1;
   const minLen = meta?.interestMinLength ?? 25;
   const suggestions = meta?.searchSuggestions?.length ? meta.searchSuggestions : FALLBACK_SUGGESTIONS;
 
@@ -34,7 +35,7 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
     if (profile?.interestQuery) setPrompt(profile.interestQuery);
   }, [profile?.interestQuery]);
 
-  if (enforced && !hasAccess) {
+  if (!hasAccess) {
     return <AiPaywall meta={meta} onOpenPriceList={onOpenPriceList} />;
   }
 
@@ -93,6 +94,11 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
         {profile?.subscription?.isActive && !isAdmin && (
           <p className="text-[12px] mt-2 font-medium" style={{ color: 'var(--lumo-link)' }}>
             Подписка активна · {profile.subscription.planLabel || profile.subscription.plan}
+          </p>
+        )}
+        {!isAdmin && !profile?.subscription?.isActive && aiRemaining != null && aiLimit > 0 && aiLimit < 999 && (
+          <p className="text-[12px] mt-2 font-medium" style={{ color: 'var(--lumo-text-muted)' }}>
+            Бесплатно · AI-поиск {aiRemaining > 0 ? `осталось ${aiRemaining} из ${aiLimit} сегодня` : 'на сегодня использован'}
           </p>
         )}
       </header>

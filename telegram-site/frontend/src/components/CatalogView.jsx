@@ -29,6 +29,7 @@ export default function CatalogView({ onOpenItem }) {
     const params = new URLSearchParams();
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
+    params.set('sort', 'deadline');
     if (category !== 'all') params.set('category', category);
     if (query.trim()) params.set('q', query.trim());
 

@@ -47,8 +47,12 @@ def is_raw_message_too_old(msg: RawMessage, *, max_age_days: int | None = None) 
     return is_message_older_than(msg, max_age_days=days)
 
 
+def llm_classify_max_age_days() -> int:
+    return get_settings().llm_classify_max_age_days
+
+
 def is_raw_message_too_old_for_llm(msg: RawMessage) -> bool:
-    return is_message_older_than(msg, max_age_days=llm_max_message_age_days())
+    return is_message_older_than(msg, max_age_days=llm_classify_max_age_days())
 
 
 def raw_message_anchor_date(msg: RawMessage) -> date | None:

@@ -11,7 +11,7 @@ export const CATALOG_PRIZE_OPTIONS = [
 
 export const DEFAULT_CATALOG_FILTERS = {
   types: [],
-  sort: 'newest',
+  sort: 'deadline',
   cashPrize: 'any',
 };
 

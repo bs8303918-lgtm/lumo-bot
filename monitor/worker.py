@@ -35,7 +35,8 @@ class MonitorWorker:
         self.settings = get_settings()
         self._running = False
 
-    async def run_cycle(self) -> None:
+    async def run_cycle(self) -> bool:
+        """Run one monitor pass. Returns False if Telethon is not authorized."""
         client = await ensure_telethon_connected()
         if not await client.is_user_authorized():
             logger.error("Telethon session not authorized, skipping monitor cycle")
@@ -43,7 +44,7 @@ class MonitorWorker:
                 state_repo = SystemStateRepository(session)
                 await state_repo.set("telethon_session_ok", "false")
                 await session.commit()
-            return
+            return False
 
         resolver = ChannelResolver(client)
         await sync_seed_channels()
@@ -114,10 +115,11 @@ class MonitorWorker:
             await session.commit()
 
         async with async_session_factory() as session:
-            removed = await MessageRepository(session).purge_expired_unmatched()
-            if removed:
-                await session.commit()
-                logger.info("Purged %d expired unmatched posts", removed)
+            if self.settings.catalog_purge_raw_messages:
+                removed = await MessageRepository(session).purge_expired_unmatched()
+                if removed:
+                    await session.commit()
+                    logger.info("Purged %d expired unmatched posts", removed)
 
         try:
             from services.daily_digest import run_daily_digests_for_all_users
@@ -126,6 +128,7 @@ class MonitorWorker:
             await run_daily_digests_for_all_users(NotificationService())
         except Exception as exc:
             log_error(logger, "daily_digest", exc)
+        return True
 
     async def scan_channel(self, channel_db_id: int) -> int:
         """Сканировать один канал сразу (например, после /add_channel)."""
@@ -283,9 +286,7 @@ class MonitorWorker:
                 return
 
             new_max_id = max(m.id for m in recent)
-            cutoff = datetime.now(timezone.utc) - timedelta(days=self.settings.monitor_initial_max_age_days)
             fetched: list[FetchedMessage] = []
-            skipped_old = 0
             skipped_no_text = 0
             for message in sorted(recent, key=lambda m: m.id):
                 if not message.message:
@@ -293,23 +294,19 @@ class MonitorWorker:
                     continue
                 msg_date = message.date
                 if msg_date is None:
-                    skipped_old += 1
+                    skipped_no_text += 1
                     continue
                 if msg_date.tzinfo is None:
                     msg_date = msg_date.replace(tzinfo=timezone.utc)
-                if msg_date < cutoff:
-                    skipped_old += 1
-                    continue
                 link = resolver.build_message_link(identifier, message.id)
                 fetched.append(FetchedMessage(message.id, message.message, link, msg_date))
 
             await self._save_messages(channel_db_id, identifier, entity, fetched, new_max_id)
             logger.info(
-                "Channel %s: first join — last %d posts, saved %d (skipped %d old, %d without text/date)",
+                "Channel %s: first join — last %d posts, saved %d (skipped %d without text/date)",
                 identifier,
                 len(recent),
                 len(fetched),
-                skipped_old,
                 skipped_no_text,
             )
             return
@@ -319,42 +316,31 @@ class MonitorWorker:
 
         fetched = []
         new_max_id = min_id
-        cutoff = datetime.now(timezone.utc) - timedelta(days=self.settings.monitor_initial_max_age_days)
-        skipped_old = 0
+        skipped_no_text = 0
         async for message in client.iter_messages(entity, min_id=min_id, reverse=True):
             new_max_id = max(new_max_id, message.id)
             if not message.message:
                 continue
             msg_date = message.date
             if msg_date is None:
-                skipped_old += 1
                 continue
             if msg_date.tzinfo is None:
                 msg_date = msg_date.replace(tzinfo=timezone.utc)
-            if msg_date < cutoff:
-                skipped_old += 1
-                continue
             link = resolver.build_message_link(identifier, message.id)
             fetched.append(FetchedMessage(message.id, message.message, link, msg_date))
-
-        if skipped_old:
-            logger.info(
-                "Channel %s: skipped %d non-new/old messages (only id>%s, max age %d days)",
-                identifier,
-                skipped_old,
-                min_id,
-                self.settings.monitor_initial_max_age_days,
-            )
 
         await self._save_messages(channel_db_id, identifier, entity, fetched, new_max_id)
 
     async def run_forever(self) -> None:
         self._running = True
         interval = self.settings.monitor_interval_minutes * 60
+        # Retry sooner when Telethon auth is broken so a redeployed session is picked up.
+        unauthorized_retry_seconds = min(interval, 15 * 60)
         while self._running:
             try:
-                await self.run_cycle()
+                ok = await self.run_cycle()
             except Exception as exc:
+                ok = False
                 log_error(logger, "monitor_worker", exc)
                 async with async_session_factory() as session:
                     streak = int(await SystemStateRepository(session).get("monitor_fail_streak", "0") or 0) + 1
@@ -362,7 +348,8 @@ class MonitorWorker:
                     await session.commit()
                     if streak >= 2:
                         await notify_admin(f"⚠️ Lumo: воркер мониторинга упал: {exc}")
-            await asyncio.sleep(interval)
+            sleep_for = interval if ok else unauthorized_retry_seconds
+            await asyncio.sleep(sleep_for)
 
     def stop(self) -> None:
         self._running = False

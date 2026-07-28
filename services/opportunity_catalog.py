@@ -61,23 +61,6 @@ class OpportunityCatalogService:
 
             await backfill_posted_at(limit=30)
             repo = catalog_repo(session)
-            archived = await repo.archive_stale_unclassified(limit=200)
-            expired_ids = await repo.deactivate_expired()
-            stale_ids = await repo.deactivate_stale_without_deadline()
-            old_ids = await repo.deactivate_old_posts()
-            invalid_ids = await repo.deactivate_invalid_active()
-            await repo.reclassify_active_types()
-            duplicate_ids = await repo.deactivate_duplicates()
-            await session.commit()
-            deactivated_ids = list(
-                dict.fromkeys([*expired_ids, *stale_ids, *old_ids, *invalid_ids, *duplicate_ids])
-            )
-            if deactivated_ids:
-                from services.startify_catalog_push import schedule_catalog_deactivate
-
-                schedule_catalog_deactivate(deactivated_ids)
-            if archived:
-                logger.info("Archived %d stale unclassified posts (skipped LLM)", archived)
             pending = await repo.get_unclassified_messages(limit=batch_limit)
 
         for raw_message, channel in pending:
@@ -104,7 +87,29 @@ class OpportunityCatalogService:
                     )
                     continue
 
-                data, _ = await self.llm.classify_opportunity(raw_message.text)
+                page_url = None
+                page_text = None
+                if self.settings.page_fetch_enabled:
+                    from services.page_fetch import fetch_linked_page_text
+
+                    page_url, page_text = await fetch_linked_page_text(
+                        raw_message.text,
+                        timeout_seconds=self.settings.page_fetch_timeout_seconds,
+                        max_chars=self.settings.page_fetch_max_chars,
+                    )
+                    if page_text:
+                        logger.info(
+                            "Catalog: fetched page for message %s (%s, %d chars)",
+                            raw_message.id,
+                            page_url,
+                            len(page_text),
+                        )
+
+                data, _ = await self.llm.classify_opportunity(
+                    raw_message.text,
+                    page_url=page_url,
+                    page_text=page_text,
+                )
                 data = coerce_llm_dict(data)
                 if not data:
                     logger.warning("Catalog: LLM вернул не объект для message %s", raw_message.id)
@@ -149,6 +154,7 @@ class OpportunityCatalogService:
                         "deadline": entry.deadline,
                         "description": entry.description,
                         "requirements": entry.requirements,
+                        "country": entry.country,
                         "application_url": entry.application_url,
                     }
                     for entry in created_entries
