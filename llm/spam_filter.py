@@ -20,6 +20,8 @@ _AD_MARKERS = (
 _SPAM_PATTERNS = (
     re.compile(r"опрос[ыа]?\s+.{0,40}(?:kzt|тг|тенге|₸|руб|рубл)", re.I),
     re.compile(r"(?:заработ|выплат[аы]).{0,30}(?:смартфон|телефон|kzt|тг|₸)", re.I),
+    re.compile(r"заработ.{0,30}(?:установ|скачива|реферал|приглаш\s+друз)", re.I),
+    re.compile(r"(?:установи|скачай|скачать)\s+.{0,30}(?:браузер|приложени|app).{0,40}заработ", re.I),
     re.compile(r"focus5g\.com", re.I),
     re.compile(r"начать\s+опрос", re.I),
     re.compile(r"честн[а-я]*\s+оценк[а-я]*\s+товар", re.I),
@@ -133,6 +135,22 @@ _CONSULTING_PROGRAM_BAIT = (
     "global korea scholarship",
 )
 
+_SERVICE_PROMO_MARKERS = (
+    "ai-платформ",
+    "аи-платформ",
+    "ии-платформ",
+    "получение студенческой визы",
+    "оформление визы",
+    "визовая поддержк",
+    "визовое сопровожден",
+    "бесплатная версия",
+)
+
+_SERVICE_PROMO_PATTERNS = (
+    re.compile(r"(?:нейросет|платформ|приложени)[а-я]*\s+для\s+поступлен", re.I),
+    re.compile(r"поможем\s+оформить\s+визу", re.I),
+)
+
 _SUCCESS_STORY_PATTERNS = (
     re.compile(
         r"(?:получил[аи]?|выиграл[аи]?|поступил[аи]?)\s+.{0,40}(?:полн(?:ый|ую|ого)|100\s*%)\s+"
@@ -192,6 +210,26 @@ def is_likely_consulting_promo(text: str) -> tuple[bool, str | None]:
         return True, "success_story_review"
 
     return False, None
+
+
+def is_likely_service_or_platform_promo(text: str) -> tuple[bool, str | None]:
+    """
+    Реклама собственного продукта/сервиса (визовая помощь, «AI-платформа для поступления»
+    и т.п.) без конкретной открытой программы — не конкурс/грант с дедлайном.
+    """
+    if not text or len(text.strip()) < 20:
+        return False, None
+
+    lowered = text.lower()
+    has_marker = any(marker in lowered for marker in _SERVICE_PROMO_MARKERS)
+    if not has_marker:
+        has_marker = any(pattern.search(text) for pattern in _SERVICE_PROMO_PATTERNS)
+    if not has_marker:
+        return False, None
+
+    if _has_open_call_signal(lowered):
+        return False, None
+    return True, "service_promo"
 
 
 def is_likely_product_feature_news(text: str) -> tuple[bool, str | None]:
@@ -440,6 +478,10 @@ def is_invalid_opportunity_extraction(data, source_text: str) -> tuple[bool, str
     if is_consulting:
         return True, consulting_reason
 
+    is_service_promo, service_reason = is_likely_service_or_platform_promo(source_text)
+    if is_service_promo:
+        return True, service_reason
+
     is_product_news, product_reason = is_likely_product_feature_news(source_text)
     if is_product_news:
         return True, product_reason
@@ -487,6 +529,10 @@ def is_likely_spam_or_ad(text: str) -> tuple[bool, str | None]:
     is_consulting, consulting_reason = is_likely_consulting_promo(text)
     if is_consulting:
         return True, consulting_reason
+
+    is_service_promo, service_reason = is_likely_service_or_platform_promo(text)
+    if is_service_promo:
+        return True, service_reason
 
     is_product_news, product_reason = is_likely_product_feature_news(text)
     if is_product_news:
