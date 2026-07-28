@@ -51,12 +51,15 @@ async def _api_startup_maintenance() -> None:
             await seed_catalog_if_empty(session)
             repo = catalog_repo(session)
             reactivated_ids = await repo.reactivate_all_real_opportunities()
+            deactivated_ids = await repo.deactivate_invalid_active()
             await session.commit()
             if reactivated_ids:
                 from services.startify_catalog_push import schedule_catalog_push
 
                 schedule_catalog_push(reactivated_ids)
                 logger.info("API startup: reactivated %d catalog entries", len(reactivated_ids))
+            if deactivated_ids:
+                logger.info("API startup: hid %d spam/invalid catalog entries", len(deactivated_ids))
     except Exception as exc:
         logger.warning("Catalog reactivation on startup: %s", exc)
 

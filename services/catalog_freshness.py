@@ -73,9 +73,10 @@ def is_catalog_entry_fresh(
     max_post_age_days: int | None = None,
     now: datetime | None = None,
 ) -> bool:
-    """Catalog entries stay visible while is_active — no age or deadline cutoffs."""
+    """Catalog entries stay visible while is_active, unless their deadline has passed."""
     del max_age_days_no_deadline, max_post_age_days, now
-    return True
+    anchor = _entry_anchor_date(entry)
+    return not is_catalog_deadline_expired(entry.deadline, anchor_date=anchor)
 
 
 def filter_fresh_entries(
