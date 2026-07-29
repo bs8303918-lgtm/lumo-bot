@@ -1,4 +1,5 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { Heart, X } from 'lucide-react';
 
 import { apiFetch, getTelegram, haptic } from '../api';
 
@@ -6,6 +7,7 @@ import { formatDeadlineMeta, sourceHandle } from '../utils/deadline';
 
 import { itemTags } from '../utils/categories';
 import TagChips from './TagChips';
+import { addCard, hasCardForSource, isFavorite, toggleFavorite } from '../utils/localFeatures';
 
 
 
@@ -45,6 +47,9 @@ function openTrackedLink(url, catalogId, type) {
 
 export default function DetailModal({ item, onClose }) {
 
+  const [favorite, setFavorite] = useState(() => (item ? isFavorite(item.id) : false));
+  const [inTracker, setInTracker] = useState(() => (item ? hasCardForSource(item.id) : false));
+
   if (!item) return null;
 
 
@@ -54,6 +59,20 @@ export default function DetailModal({ item, onClose }) {
   const deadline = formatDeadlineMeta(item.deadline);
 
   const handle = sourceHandle(item);
+
+
+
+  const addToTracker = () => {
+    haptic('light');
+    addCard({
+      title: item.title,
+      org: item.sourceChannelName || '',
+      deadline: item.deadline || '',
+      link: item.applicationUrl || item.messageLink || '',
+      sourceId: item.id,
+    });
+    setInTracker(true);
+  };
 
 
 
@@ -83,7 +102,25 @@ export default function DetailModal({ item, onClose }) {
 
         <div className="flex items-start justify-between gap-3 mb-3 pr-8">
           <h3 className="text-xl font-bold leading-snug">{item.title}</h3>
-          <TagChips tags={tags} />
+          <div className="flex items-center gap-2 shrink-0">
+            <TagChips tags={tags} />
+            <button
+              type="button"
+              onClick={() => {
+                haptic('light');
+                toggleFavorite(item);
+                setFavorite((v) => !v);
+              }}
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              aria-label={favorite ? 'Убрать из избранного' : 'В избранное'}
+            >
+              <Heart
+                size={18}
+                fill={favorite ? 'var(--lumo-urgent)' : 'none'}
+                style={{ color: favorite ? 'var(--lumo-urgent)' : 'var(--lumo-text-muted)' }}
+              />
+            </button>
+          </div>
         </div>
 
 
@@ -186,7 +223,7 @@ export default function DetailModal({ item, onClose }) {
 
 
 
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2 mb-2">
 
           {item.applicationUrl && (
 
@@ -236,6 +273,26 @@ export default function DetailModal({ item, onClose }) {
 
 
 
+        <button
+
+          type="button"
+
+          onClick={addToTracker}
+
+          disabled={inTracker}
+
+          className="w-full py-3 rounded-xl font-bold text-[13px] mb-3 disabled:opacity-50"
+
+          style={{ background: 'var(--lumo-surface-muted)', color: 'var(--lumo-text)', border: '1px solid var(--lumo-border)' }}
+
+        >
+
+          {inTracker ? 'Уже в заявках' : '+ В мои заявки'}
+
+        </button>
+
+
+
         <button type="button" onClick={onClose} className="w-full py-3.5 rounded-xl font-bold lumo-btn-primary">
 
           Закрыть
@@ -249,5 +306,3 @@ export default function DetailModal({ item, onClose }) {
   );
 
 }
-
-
