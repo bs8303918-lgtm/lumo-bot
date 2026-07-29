@@ -4,10 +4,13 @@ import AdminView from './components/AdminView';
 import AiView from './components/AiView';
 import CatalogView from './components/CatalogView';
 import DetailModal from './components/DetailModal';
+import FavoritesView from './components/FavoritesView';
 import LumoLogo from './components/LumoLogo';
 import ProfileView from './components/ProfileView';
 import PricingView from './components/PricingView';
+import ReviewsView from './components/ReviewsView';
 import TeamFinderView from './components/TeamFinderView';
+import TrackerView from './components/TrackerView';
 import { resolvePlans } from './utils/pricing';
 import { apiFetch, getTelegram, haptic, initTelegramApp } from './api';
 
@@ -16,6 +19,9 @@ function ViewTabs({ active, onChange, isAdmin }) {
   const tabs = [
     { id: 'catalog', label: 'Каталог', prefix: null },
     { id: 'ai', label: 'AI-поиск', prefix: '✦' },
+    { id: 'tracker', label: 'Заявки', prefix: null },
+    { id: 'favorites', label: 'Избранное', prefix: null },
+    { id: 'reviews', label: 'Отзывы', prefix: null },
     { id: 'team', label: 'Команда', prefix: null },
     { id: 'profile', label: 'Профиль', prefix: '●' },
   ];
@@ -194,7 +200,7 @@ export default function App() {
           </div>
           {!pricingOnly && (
             <ViewTabs
-              active={view === 'pricing' ? 'ai' : view}
+              active={view === 'pricing' ? 'catalog' : view}
               onChange={(id) => {
                 setPricingNotice(null);
                 setView(id);
@@ -242,6 +248,9 @@ export default function App() {
               />
             )}
             {view === 'catalog' && <CatalogView onOpenItem={openItem} />}
+            {view === 'tracker' && <TrackerView />}
+            {view === 'favorites' && <FavoritesView onOpenItem={openItem} />}
+            {view === 'reviews' && <ReviewsView />}
             {view === 'team' && (
               <TeamFinderView profile={profile} onProfileRefresh={loadProfile} />
             )}
@@ -255,7 +264,7 @@ export default function App() {
               />
             )}
             {view === 'admin' && profile?.isAdmin && (
-              <AdminView onExit={() => setView('ai')} />
+              <AdminView onExit={() => setView('catalog')} />
             )}
             {view === 'admin' && !profile?.isAdmin && (
               <div className="lumo-card p-4 text-center">
