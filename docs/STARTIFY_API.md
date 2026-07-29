@@ -11,15 +11,21 @@ Lumo (Railway, FastAPI + бот) ↔ Startify (Next.js + NestJS + Prisma + Postg
 | [STARTIFY_CATALOG_WEBHOOK.md](./STARTIFY_CATALOG_WEBHOOK.md) | Push конкурсов Lumo → Startify |
 | [STARTIFY_CLAUDE_DEPLOY_PROMPT.md](./STARTIFY_CLAUDE_DEPLOY_PROMPT.md) | Промпт для Claude в репо Startify |
 
-## Сейчас (подготовка)
+## Модель доступа в Mini App
+
+| Функция | Доступ |
+|---------|--------|
+| Каталог, фильтры, карточки конкурсов | **Бесплатно всем**, без ограничений |
+| AI-поиск (`/lumo/match`, `/users/interest`) | **Платно** — freemium получает `AI_SEARCH_DAILY_LIMIT` попыток в день (сейчас `1`), дальше — оффер подписки |
+
+## Сейчас (прод, Railway)
 
 | Параметр | Значение |
 |----------|----------|
-| `SUBSCRIPTIONS_ENFORCED` | `false` — бот **не платный**, 3 AI-запроса/день |
+| `SUBSCRIPTIONS_ENFORCED` | `true` — лимит AI-поиска включён, freemium ограничен `AI_SEARCH_DAILY_LIMIT`/день |
 | `SUBSCRIPTION_PREVIEW_ENABLED` | `true` — тарифы видны в Mini App → Профиль |
+| `AI_SEARCH_DAILY_LIMIT` | `1` — бесплатных AI-поисков в день для freemium |
 | `PARTNER_API_KEY` | секрет для server-to-server вызовов из NestJS |
-
-Когда запустите оплату: `SUBSCRIPTIONS_ENFORCED=true` на Railway.
 
 ---
 
@@ -79,7 +85,7 @@ Base URL: `https://lumo-bot-production-9903.up.railway.app/api/partner/v1`
 
 ### `GET /catalog/opportunities?limit=50&offset=0`
 
-Экспорт каталога для синка в Prisma.
+Экспорт каталога для синка в Prisma. Не требует оплаты — каталог открыт всем.
 
 ---
 
@@ -106,8 +112,9 @@ await fetch(`${LUMO_API}/users/${telegramId}/subscription`, {
 
 ```env
 PARTNER_API_KEY=<секрет>
-SUBSCRIPTIONS_ENFORCED=false
+SUBSCRIPTIONS_ENFORCED=true
 SUBSCRIPTION_PREVIEW_ENABLED=true
+AI_SEARCH_DAILY_LIMIT=1
 STARTIFY_CHECKOUT_URL=https://their-site.example/checkout
 ```
 

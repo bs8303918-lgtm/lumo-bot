@@ -14,8 +14,8 @@ import { apiFetch, getTelegram, haptic, initTelegramApp } from './api';
 function ViewTabs({ active, onChange, isAdmin }) {
   // Price is a separate Mini App entry (?view=pricing) — not mixed with bot features.
   const tabs = [
-    { id: 'ai', label: 'AI-поиск', prefix: '✦' },
     { id: 'catalog', label: 'Каталог', prefix: null },
+    { id: 'ai', label: 'AI-поиск', prefix: '✦' },
     { id: 'team', label: 'Команда', prefix: null },
     { id: 'profile', label: 'Профиль', prefix: '●' },
   ];
@@ -73,7 +73,7 @@ function pricingOnlyFromUrl() {
 
 export default function App() {
   const [pricingOnly] = useState(() => pricingOnlyFromUrl());
-  const [view, setView] = useState(() => (pricingOnlyFromUrl() ? 'pricing' : 'ai'));
+  const [view, setView] = useState(() => (pricingOnlyFromUrl() ? 'pricing' : 'catalog'));
   const [dark, setDark] = useState(() => localStorage.getItem('lumo-theme') === 'dark');
   const [selected, setSelected] = useState(null);
   const [meta, setMeta] = useState(null);
