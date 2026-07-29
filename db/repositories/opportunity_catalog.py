@@ -124,6 +124,92 @@ class OpportunityCatalogRepository:
         """No-op: duplicates are not auto-hidden."""
         return []
 
+    _MANUAL_CHANNEL_IDENTIFIER = "-lumo-admin-manual"
+
+    async def _get_or_create_manual_channel(self) -> MonitoredChannel:
+        """A synthetic channel that owns admin-entered catalog opportunities.
+
+        Its identifier starts with "-" so channel_public_url/build_message_link_from_parts
+        (which treat a leading "-" as a non-public/internal chat id) never fabricate a
+        fake t.me link for entries that were typed in by hand.
+        """
+        result = await self.session.execute(
+            select(MonitoredChannel).where(
+                MonitoredChannel.channel_identifier == self._MANUAL_CHANNEL_IDENTIFIER
+            )
+        )
+        channel = result.scalar_one_or_none()
+        if channel is None:
+            channel = MonitoredChannel(
+                channel_identifier=self._MANUAL_CHANNEL_IDENTIFIER,
+                channel_title="Добавлено вручную",
+            )
+            self.session.add(channel)
+            await self.session.flush()
+        return channel
+
+    async def create_manual_entry(
+        self,
+        *,
+        title: str,
+        description: str,
+        deadline: str,
+        opportunity_type: str,
+        requirements: str | None = None,
+        country: str | None = None,
+        application_url: str | None = None,
+        message_link: str | None = None,
+        source_channel_name: str | None = None,
+    ) -> CatalogOpportunity:
+        """Admin-only path: insert a catalog entry directly, active immediately,
+        bypassing the Telegram-post classification pipeline entirely."""
+        channel = await self._get_or_create_manual_channel()
+
+        next_id_result = await self.session.execute(
+            select(func.max(RawMessage.telegram_message_id)).where(
+                RawMessage.monitored_channel_id == channel.id
+            )
+        )
+        next_message_id = (next_id_result.scalar() or 0) + 1
+
+        raw_message = RawMessage(
+            monitored_channel_id=channel.id,
+            telegram_message_id=next_message_id,
+            text=description or title,
+            message_link=message_link or "",
+        )
+        self.session.add(raw_message)
+        await self.session.flush()
+
+        opp_type = opportunity_type if opportunity_type in OPPORTUNITY_TYPES else "другое"
+        opp_tags = build_opportunity_tags(
+            description or "",
+            title=title,
+            description=description or "",
+            requirements=requirements or "",
+            primary_type=opp_type,
+        )
+        tags_json = tags_to_json(opp_tags) if opp_tags else None
+
+        entry = CatalogOpportunity(
+            raw_message_id=raw_message.id,
+            opportunity_type=opp_type,
+            tags_json=tags_json,
+            title=title,
+            deadline=deadline,
+            description=description,
+            requirements=requirements,
+            country=country,
+            application_url=application_url,
+            source_channel_name=source_channel_name or "Lumo",
+            message_link=message_link or "",
+            is_active=True,
+        )
+        self.session.add(entry)
+        await self.session.flush()
+        orm_attributes.set_committed_value(entry, "raw_message", raw_message)
+        return entry
+
     async def create(
         self,
         raw_message: RawMessage,
