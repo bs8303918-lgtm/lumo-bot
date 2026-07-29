@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Lumo — конкурсы</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-badge">L</span>
+          <div class="brand-text">
+            <span class="brand-title">Lumo</span>
+            <span class="brand-sub" id="statusLine">конкурсы и гранты</span>
+          </div>
+        </div>
+        <button id="refreshBtn" class="icon-btn" title="Проверить новые">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6" />
+            <path d="M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
+      </header>
+
+      <section id="authView" class="auth-view hidden">
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-mode="login">Войти</button>
+          <button class="auth-tab" data-mode="register">Регистрация</button>
+        </div>
+        <form id="authForm" class="auth-form">
+          <label class="field">
+            <span>Email</span>
+            <input type="email" id="authEmail" autocomplete="email" required />
+          </label>
+          <label class="field" id="nameField" hidden>
+            <span>Имя</span>
+            <input type="text" id="authName" autocomplete="name" />
+          </label>
+          <label class="field">
+            <span>Пароль</span>
+            <input type="password" id="authPassword" autocomplete="current-password" minlength="8" required />
+          </label>
+          <p id="authError" class="error-text hidden"></p>
+          <button type="submit" id="authSubmit" class="primary-btn">Войти</button>
+        </form>
+        <p class="auth-hint">Тот же аккаунт, что и на сайте Lumo и в Telegram-боте.</p>
+      </section>
+
+      <section id="mainView" class="main-view hidden">
+        <div class="search-row">
+          <input type="search" id="searchInput" placeholder="Поиск по конкурсам..." />
+        </div>
+        <div id="filterRow" class="filter-row"></div>
+
+        <div class="tabs-row">
+          <button class="view-tab active" data-tab="catalog">Каталог</button>
+          <button class="view-tab" data-tab="tracked">Отслеживаю <span id="trackedCount" class="count-pill hidden">0</span></button>
+        </div>
+
+        <div id="listContainer" class="list-container">
+          <div id="loadingState" class="empty-state hidden">Загружаю каталог...</div>
+          <div id="emptyState" class="empty-state hidden">Ничего не найдено</div>
+          <ul id="itemsList" class="items-list"></ul>
+        </div>
+
+        <button id="loadMoreBtn" class="load-more-btn hidden">Показать ещё</button>
+
+        <footer class="footer-row">
+          <button id="openBotBtn" class="link-btn">Открыть в Telegram</button>
+          <button id="logoutBtn" class="link-btn muted">Выйти</button>
+        </footer>
+      </section>
+    </div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
