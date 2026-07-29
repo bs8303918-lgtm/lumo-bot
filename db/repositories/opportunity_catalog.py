@@ -181,13 +181,15 @@ class OpportunityCatalogRepository:
         self.session.add(raw_message)
         await self.session.flush()
 
-        opp_type = opportunity_type if opportunity_type in OPPORTUNITY_TYPES else "другое"
+        # Admins can freely name a new category (see CatalogCategory) — unlike the
+        # auto-classification pipeline, this isn't restricted to the fixed OPPORTUNITY_TYPES.
+        opp_type = (opportunity_type or "").strip() or "другое"
         opp_tags = build_opportunity_tags(
             description or "",
             title=title,
             description=description or "",
             requirements=requirements or "",
-            primary_type=opp_type,
+            primary_type=opp_type if opp_type in OPPORTUNITY_TYPES else "другое",
         )
         tags_json = tags_to_json(opp_tags) if opp_tags else None
 

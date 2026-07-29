@@ -221,6 +221,34 @@ class CatalogOpportunity(Base):
     raw_message: Mapped["RawMessage"] = relationship(back_populates="catalog_opportunities")
 
 
+class CatalogEditLog(Base):
+    """Audit trail of admin edits to catalog opportunities — kept for future AI training data."""
+
+    __tablename__ = "catalog_edit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    opportunity_id: Mapped[int] = mapped_column(
+        ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True
+    )
+    admin_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    changes_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class CatalogCategory(Base):
+    """Admin-defined opportunity categories, layered on top of the built-in fixed set."""
+
+    __tablename__ = "catalog_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    type: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    emoji: Mapped[str] = mapped_column(String(16), default="📌", server_default="📌")
+    label: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Event(Base):
     __tablename__ = "events"
 
