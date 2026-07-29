@@ -5,6 +5,7 @@ import AiView from './components/AiView';
 import CatalogView from './components/CatalogView';
 import DetailModal from './components/DetailModal';
 import FavoritesView from './components/FavoritesView';
+import GoogleAuthGate from './components/GoogleAuthGate';
 import LumoLogo from './components/LumoLogo';
 import ProfileView from './components/ProfileView';
 import PricingView from './components/PricingView';
@@ -120,6 +121,8 @@ export default function App() {
   }, [loadProfile, pricingOnly]);
 
   const resolvedPlans = resolvePlans(plans);
+  // Gate everything except the standalone pricing page behind Google sign-in.
+  const needsGoogleAuth = !pricingOnly && Boolean(profile) && !profile.googleLinked;
 
   const closeApp = useCallback(() => {
     const tg = getTelegram();
@@ -198,7 +201,7 @@ export default function App() {
               </button>
             </div>
           </div>
-          {!pricingOnly && (
+          {!pricingOnly && !needsGoogleAuth && (
             <ViewTabs
               active={view === 'pricing' ? 'catalog' : view}
               onChange={(id) => {
@@ -236,6 +239,8 @@ export default function App() {
             standalone
             onDismissLimit={closeApp}
           />
+        ) : needsGoogleAuth ? (
+          <GoogleAuthGate onLinked={loadProfile} />
         ) : (
           <>
             {view === 'ai' && (

@@ -19,6 +19,7 @@ from db.repositories.opportunity_catalog import (
 from db.repositories.users import MatchRepository, MessageRepository, SystemStateRepository, UserRepository
 from db.repositories.users import EventRepository
 from services.ai_search_limit import ai_search_usage, enforce_ai_search_limit
+from services.google_auth import verify_google_id_token
 from services.interest_matcher import (
     entry_all_tags,
     extract_categories_from_text,
@@ -67,6 +68,10 @@ class MatchFeedbackBatchRequest(BaseModel):
     helpful: bool
     catalogIds: list[int] = Field(min_length=1, max_length=30)
     categories: list[str] = Field(default_factory=list)
+
+
+class LinkGoogleRequest(BaseModel):
+    idToken: str = Field(min_length=1)
 
 
 async def _persist_interest(
@@ -174,6 +179,45 @@ async def get_me(
         "catalogCount": catalog_count,
         "subscription": subscription_status(user),
         "role": (user.role or "student").lower(),
+        "email": user.email,
+        "displayName": user.display_name,
+        "googleLinked": bool(user.google_sub),
+    }
+
+
+@router.post("/auth/link-google")
+async def link_google_account(
+    payload: LinkGoogleRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Attach a verified Google identity to the current (Telegram-authenticated) user.
+
+    Used to gate the Telegram Mini App behind Google sign-in: the user is already
+    identified via X-Telegram-Init-Data, this just verifies + records their Google account.
+    """
+    google_user = await verify_google_id_token(payload.idToken)
+    if not google_user:
+        raise HTTPException(status_code=401, detail="Invalid or expired Google sign-in")
+
+    try:
+        linked = await UserRepository(session).link_google_account(
+            user,
+            google_user.sub,
+            email=google_user.email,
+            display_name=google_user.name,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=409,
+            detail="Этот Google-аккаунт уже привязан к другому пользователю",
+        )
+    await session.commit()
+
+    return {
+        "googleLinked": True,
+        "email": linked.email,
+        "displayName": linked.display_name,
     }
 
 

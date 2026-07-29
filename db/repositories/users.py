@@ -265,6 +265,26 @@ class UserRepository:
         await self.session.flush()
         return user, True
 
+    async def link_google_account(
+        self,
+        user: User,
+        google_sub: str,
+        email: str | None = None,
+        display_name: str | None = None,
+    ) -> User:
+        """Attach a verified Google identity to an existing (Telegram) user row."""
+        existing = await self.get_by_google_sub(google_sub)
+        if existing and existing.id != user.id:
+            raise ValueError("google_account_linked_elsewhere")
+
+        user.google_sub = google_sub
+        if email:
+            user.email = email
+        if display_name:
+            user.display_name = display_name
+        await self.session.flush()
+        return user
+
     async def create_web_user(
         self,
         email: str,
