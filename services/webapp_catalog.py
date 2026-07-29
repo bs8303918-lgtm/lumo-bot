@@ -115,6 +115,8 @@ def serialize_opportunity_detail(
     telegram_message_id: int | None = None,
 ) -> dict:
     payload = serialize_opportunity(entry)
+    raw_message = getattr(entry, "raw_message", None)
+    payload["fullText"] = raw_message.text if raw_message and raw_message.text else None
     return enrich_opportunity_links(
         payload,
         channel_identifier=channel_identifier,
