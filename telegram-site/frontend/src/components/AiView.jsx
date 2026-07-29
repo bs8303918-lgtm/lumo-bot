@@ -7,6 +7,7 @@ import { apiFetch, haptic } from '../api';
 import AiPaywall from './AiPaywall';
 import OpportunityCard from './OpportunityCard';
 import { SearchResultsFeedback } from './SearchFeedback';
+import { loadFavorites, toggleFavorite } from '../utils/localFeatures';
 
 const FALLBACK_SUGGESTIONS = [
   { emoji: '🚀', text: 'Я стартапер. Ищу питчи, хакатоны и гранты для стартапов в Казахстане' },
@@ -23,6 +24,8 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [favorites, setFavorites] = useState(() => loadFavorites());
+  const favoriteIds = new Set(favorites.map((f) => f.id));
 
   const isAdmin = profile?.isAdmin;
   const hasAccess = isAdmin || profile?.hasAiAccess || profile?.subscription?.hasAiAccess || profile?.subscription?.isActive;
@@ -204,6 +207,8 @@ export default function AiView({ onOpenItem, meta, profile, onProfileRefresh, on
                     onOpen={onOpenItem}
                     feedbackQuery={result.query}
                     feedbackCategories={result.categories}
+                    isFavorite={favoriteIds.has(item.id)}
+                    onToggleFavorite={(it) => setFavorites(toggleFavorite(it))}
                   />
                 ))}
               </div>
