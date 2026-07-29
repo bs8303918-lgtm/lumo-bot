@@ -3,6 +3,7 @@ import { Loader2, Plus, Search } from 'lucide-react';
 import { apiFetch, haptic } from '../api';
 import OpportunityCard from './OpportunityCard';
 import AddOpportunityModal from './AddOpportunityModal';
+import { loadFavorites, toggleFavorite } from '../utils/localFeatures';
 
 const PAGE_SIZE = 20;
 
@@ -17,6 +18,8 @@ export default function CatalogView({ onOpenItem }) {
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
+  const [favorites, setFavorites] = useState(() => loadFavorites());
+  const favoriteIds = new Set(favorites.map((f) => f.id));
   const loadMoreRef = useRef(null);
   const requestIdRef = useRef(0);
   const bootstrappedRef = useRef(false);
@@ -202,7 +205,13 @@ export default function CatalogView({ onOpenItem }) {
       ) : (
         <div className="grid grid-cols-1 gap-3">
           {items.map((item) => (
-            <OpportunityCard key={item.id} item={item} onOpen={onOpenItem} />
+            <OpportunityCard
+              key={item.id}
+              item={item}
+              onOpen={onOpenItem}
+              isFavorite={favoriteIds.has(item.id)}
+              onToggleFavorite={(it) => setFavorites(toggleFavorite(it))}
+            />
           ))}
         </div>
       )}
