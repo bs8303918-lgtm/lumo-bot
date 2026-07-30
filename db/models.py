@@ -36,6 +36,11 @@ class User(Base):
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[str] = mapped_column(String(16), default="student", server_default="student", index=True)
+    grade: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    english_level: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    subjects_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visible_in_community: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -217,6 +222,8 @@ class CatalogOpportunity(Base):
     message_link: Mapped[str] = mapped_column(String(512))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
     classified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ai_summary_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requirements_checklist_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     raw_message: Mapped["RawMessage"] = relationship(back_populates="catalog_opportunities")
 
@@ -498,3 +505,73 @@ class ContactLead(Base):
     grant_id: Mapped[int | None] = mapped_column(ForeignKey("grants.id", ondelete="SET NULL"), nullable=True)
     lead_type: Mapped[str] = mapped_column(String(32), default="contact", server_default="contact")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SavedOpportunity(Base):
+    """Избранное с трекингом статуса подачи (interested / applied / interview / result)."""
+
+    __tablename__ = "saved_opportunities"
+    __table_args__ = (UniqueConstraint("user_id", "catalog_id", name="uq_saved_opportunity_user_catalog"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="interested", server_default="interested", index=True)
+    checklist_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notify_opt_in: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship()
+    catalog: Mapped["CatalogOpportunity"] = relationship()
+
+
+class DeadlineReminderLog(Base):
+    """Не дублировать напоминания о дедлайне (7/3/1 день)."""
+
+    __tablename__ = "deadline_reminder_log"
+    __table_args__ = (
+        UniqueConstraint("user_id", "catalog_id", "window", name="uq_deadline_reminder_user_catalog_window"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True)
+    window: Mapped[str] = mapped_column(String(8))
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OpportunityReview(Base):
+    """Отзывы/советы от участников — UGC на странице конкурса."""
+
+    __tablename__ = "opportunity_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text)
+    link: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    author_display_name: Mapped[str] = mapped_column(String(120), default="Аноним", server_default="Аноним")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    catalog: Mapped["CatalogOpportunity"] = relationship()
+    user: Mapped["User"] = relationship()
+
+
+class MentorRequest(Base):
+    """Заявка студента на подбор ментора под конкретный конкурс (Premium add-on)."""
+
+    __tablename__ = "mentor_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    student_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    catalog_id: Mapped[int] = mapped_column(ForeignKey("catalog_opportunities.id", ondelete="CASCADE"), index=True)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending", server_default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    student: Mapped["User"] = relationship()
+    catalog: Mapped["CatalogOpportunity"] = relationship()

@@ -97,6 +97,9 @@ class Settings(BaseSettings):
     # Удалять просроченные raw_messages без матчей (каскадом тянет catalog) — держать выключенным
     catalog_purge_raw_messages: bool = False
     subscription_reminder_interval_seconds: int = 3600
+    premium_early_access_hours: int = 24
+    deadline_reminder_check_interval_seconds: int = 3600
+    weekly_digest_check_interval_seconds: int = 3600
 
     # Partner B2B (AI Startify) — true = AI только по подписке / trial
     partner_api_key: str = ""

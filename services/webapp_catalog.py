@@ -6,7 +6,7 @@ import re
 
 from datetime import timezone
 
-from db.models import CatalogOpportunity
+from db.models import CatalogOpportunity, User
 from llm.deadline import parse_deadline
 from services.catalog_dedup import catalog_dedupe_keys
 from services.catalog_display import (
@@ -65,7 +65,7 @@ def serialize_tag(tag: str) -> dict:
     return {"type": tag, "emoji": "🎯", "label": tag.capitalize(), "custom": True}
 
 
-def serialize_opportunity(entry: CatalogOpportunity) -> dict:
+def serialize_opportunity(entry: CatalogOpportunity, *, user: User | None = None) -> dict:
     all_tags = entry_all_tags(entry)
     tag_objects = [serialize_tag(t) for t in all_tags]
     opp_type = entry.opportunity_type
@@ -84,8 +84,14 @@ def serialize_opportunity(entry: CatalogOpportunity) -> dict:
     classified = entry.classified_at
     if classified is not None and classified.tzinfo is None:
         classified = classified.replace(tzinfo=timezone.utc)
+    match_score = None
+    if user is not None:
+        from services.match_score import compute_match_score
+
+        match_score = compute_match_score(user, entry)
     return {
         "id": entry.id,
+        "matchScore": match_score,
         "type": opp_type,
         "emoji": primary.get("emoji") or emoji,
         "label": primary.get("label") or label,
@@ -113,8 +119,9 @@ def serialize_opportunity_detail(
     *,
     channel_identifier: str | None = None,
     telegram_message_id: int | None = None,
+    user: User | None = None,
 ) -> dict:
-    payload = serialize_opportunity(entry)
+    payload = serialize_opportunity(entry, user=user)
     raw_message = getattr(entry, "raw_message", None)
     payload["fullText"] = raw_message.text if raw_message and raw_message.text else None
     return enrich_opportunity_links(
@@ -317,6 +324,7 @@ def match_opportunities_for_user(
     limit: int = 12,
     min_score: float | None = None,
     feedback_hints: FeedbackHints | None = None,
+    user: User | None = None,
 ) -> tuple[list[dict], list[str]]:
     picked, categories = pick_opportunities_for_user(
         interest_query,
@@ -325,7 +333,7 @@ def match_opportunities_for_user(
         min_score=min_score,
         feedback_hints=feedback_hints,
     )
-    return [serialize_opportunity(entry) for entry in picked], categories
+    return [serialize_opportunity(entry, user=user) for entry in picked], categories
 
 
 async def match_opportunities_for_user_async(
@@ -335,6 +343,7 @@ async def match_opportunities_for_user_async(
     limit: int = 12,
     min_score: float | None = None,
     feedback_hints: FeedbackHints | None = None,
+    user: User | None = None,
 ) -> tuple[list[dict], list[str]]:
     picked, categories = pick_opportunities_for_user(
         interest_query,
@@ -347,7 +356,7 @@ async def match_opportunities_for_user_async(
         from services.catalog_rerank import llm_rerank_catalog
 
         picked = await llm_rerank_catalog(interest_query, picked, max_pick=limit)
-    return [serialize_opportunity(entry) for entry in picked], categories
+    return [serialize_opportunity(entry, user=user) for entry in picked], categories
 
 
 def plural_opportunities(count: int) -> str:

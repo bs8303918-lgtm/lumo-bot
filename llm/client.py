@@ -12,9 +12,11 @@ from config import get_settings
 from llm.deadline import format_today
 from llm.json_utils import coerce_llm_dict
 from llm.prompts import (
+    APPLICATION_ASSISTANT_PROMPT,
     CATALOG_MATCH_PROMPT,
     CLASSIFICATION_PROMPT,
     INTEREST_CATEGORIES_PROMPT,
+    OPPORTUNITY_BRIEF_PROMPT,
     PROFILE_EVALUATOR_PROMPT,
     RELEVANCE_PROMPT,
     TEAM_PROFILE_PROMPT,
@@ -303,6 +305,44 @@ class LLMClient:
             deadline=deadline or "не указан",
         )
         return await self._json_prompt(prompt, max_tokens=512, user_profile=True)
+
+    async def summarize_opportunity(
+        self,
+        *,
+        title: str,
+        opp_type: str,
+        description: str | None,
+        requirements: str | None,
+        deadline: str | None,
+    ) -> tuple[dict | None, str | None]:
+        prompt = OPPORTUNITY_BRIEF_PROMPT.format(
+            title=title,
+            opp_type=opp_type,
+            description=(description or "не указано")[:1200],
+            requirements=(requirements or "не указаны")[:800],
+            deadline=deadline or "не указан",
+        )
+        return await self._json_prompt(prompt, max_tokens=640)
+
+    async def draft_application_help(
+        self,
+        *,
+        title: str,
+        opp_type: str,
+        description: str | None,
+        requirements: str | None,
+        deadline: str | None,
+        student_message: str,
+    ) -> tuple[dict | None, str | None]:
+        prompt = APPLICATION_ASSISTANT_PROMPT.format(
+            title=title,
+            opp_type=opp_type,
+            description=(description or "не указано")[:1200],
+            requirements=(requirements or "не указаны")[:800],
+            deadline=deadline or "не указан",
+            student_message=student_message[:1500],
+        )
+        return await self._json_prompt(prompt, max_tokens=900, user_profile=True)
 
     async def _json_prompt(
         self,

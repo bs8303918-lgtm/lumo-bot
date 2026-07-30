@@ -24,9 +24,11 @@ async def _api_startup_maintenance() -> None:
             await conn.run_sync(Base.metadata.create_all)
 
         from db.migrations import (
+            ensure_catalog_ai_brief_columns,
             ensure_catalog_country_column,
             ensure_catalog_multi_per_message,
             ensure_google_auth_columns,
+            ensure_student_profile_columns,
             ensure_subscription_columns,
             ensure_team_profiles_table,
             ensure_mentor_workspace_tables,
@@ -42,6 +44,8 @@ async def _api_startup_maintenance() -> None:
         await ensure_team_profiles_table()
         await ensure_mentor_workspace_tables()
         await ensure_shared_rooms_tables()
+        await ensure_student_profile_columns()
+        await ensure_catalog_ai_brief_columns()
         logger.info("API startup maintenance finished")
     except Exception as exc:
         logger.warning("API startup maintenance: %s", exc)

@@ -378,6 +378,62 @@ async def ensure_user_role_column() -> None:
             )
 
 
+async def ensure_student_profile_columns() -> None:
+    """Класс / регион / уровень английского / предметы — структурированный профиль ученика."""
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(users)"))
+            columns = {row[1] for row in result.fetchall()}
+            specs = [
+                ("grade", "VARCHAR(32)"),
+                ("region", "VARCHAR(64)"),
+                ("english_level", "VARCHAR(16)"),
+                ("subjects_json", "TEXT"),
+                ("visible_in_community", "BOOLEAN NOT NULL DEFAULT 0"),
+            ]
+            for name, ddl in specs:
+                if name not in columns:
+                    await conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
+        elif dialect == "postgresql":
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS grade VARCHAR(32)"))
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS region VARCHAR(64)"))
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS english_level VARCHAR(16)"))
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS subjects_json TEXT"))
+            await conn.execute(
+                text(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS visible_in_community "
+                    "BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_region ON users (region)"))
+
+
+async def ensure_catalog_ai_brief_columns() -> None:
+    """AI-саммари в буллетах + чеклист требований — кэш на карточке конкурса."""
+    dialect = engine.dialect.name
+    async with engine.begin() as conn:
+        if dialect == "sqlite":
+            result = await conn.execute(text("PRAGMA table_info(catalog_opportunities)"))
+            columns = {row[1] for row in result.fetchall()}
+            if "ai_summary_json" not in columns:
+                await conn.execute(text("ALTER TABLE catalog_opportunities ADD COLUMN ai_summary_json TEXT"))
+            if "requirements_checklist_json" not in columns:
+                await conn.execute(
+                    text("ALTER TABLE catalog_opportunities ADD COLUMN requirements_checklist_json TEXT")
+                )
+        elif dialect == "postgresql":
+            await conn.execute(
+                text("ALTER TABLE catalog_opportunities ADD COLUMN IF NOT EXISTS ai_summary_json TEXT")
+            )
+            await conn.execute(
+                text(
+                    "ALTER TABLE catalog_opportunities ADD COLUMN IF NOT EXISTS "
+                    "requirements_checklist_json TEXT"
+                )
+            )
+
+
 async def ensure_shared_rooms_tables() -> None:
     dialect = engine.dialect.name
     await ensure_user_role_column()

@@ -7,10 +7,12 @@ from bot.instance import close_bot, create_bot
 from config import get_settings
 from db.base import Base, async_session_factory, configure_supabase_pooler, engine
 from db.migrations import (
+    ensure_catalog_ai_brief_columns,
     ensure_catalog_country_column,
     ensure_catalog_multi_per_message,
     ensure_google_auth_columns,
     ensure_raw_message_columns,
+    ensure_student_profile_columns,
     ensure_subscription_columns,
     ensure_team_profiles_table,
     ensure_mentor_workspace_tables,
@@ -58,6 +60,8 @@ async def init_schema() -> None:
     await ensure_team_profiles_table()
     await ensure_mentor_workspace_tables()
     await ensure_shared_rooms_tables()
+    await ensure_student_profile_columns()
+    await ensure_catalog_ai_brief_columns()
 
 
 async def run_startup_maintenance() -> None:
@@ -182,6 +186,18 @@ async def run_startify_catalog_sync() -> None:
     from services.startify_catalog_push import run_startify_catalog_sync_forever
 
     await run_startify_catalog_sync_forever()
+
+
+async def run_deadline_reminders() -> None:
+    from services.deadline_reminders import run_deadline_reminders_forever
+
+    await run_deadline_reminders_forever()
+
+
+async def run_weekly_digest() -> None:
+    from services.weekly_digest import run_weekly_digest_forever
+
+    await run_weekly_digest_forever()
 
 
 async def _on_monitor_critical(exc: Exception) -> None:
@@ -346,6 +362,8 @@ async def main() -> None:
                     _run_after_boot(boot_ready, run_llm_processor, name="llm"),
                     _run_after_boot(boot_ready, run_subscription_reminders, name="subscription_reminders"),
                     _run_after_boot(boot_ready, run_startify_catalog_sync, name="startify_catalog_sync"),
+                    _run_after_boot(boot_ready, run_deadline_reminders, name="deadline_reminders"),
+                    _run_after_boot(boot_ready, run_weekly_digest, name="weekly_digest"),
                     _run_posted_at_after_boot(boot_ready),
                 ]
             )
