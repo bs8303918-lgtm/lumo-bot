@@ -412,9 +412,11 @@ class OpportunityCatalogRepository:
             )
         return MonitoredChannel.is_seed.is_(True)
 
-    async def count_active_for_user(self, user_id: int) -> int:
+    async def count_active_for_user(
+        self, user_id: int, *, visible_before: datetime | None = None
+    ) -> int:
         user_channels = await self._user_channel_identifiers(user_id)
-        result = await self.session.execute(
+        query = (
             select(CatalogOpportunity)
             .options(joinedload(CatalogOpportunity.raw_message))
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
@@ -422,15 +424,20 @@ class OpportunityCatalogRepository:
             .where(CatalogOpportunity.is_active.is_(True))
             .where(self._catalog_access_condition(user_channels))
         )
+        if visible_before is not None:
+            query = query.where(CatalogOpportunity.classified_at <= visible_before)
+        result = await self.session.execute(query)
         fresh = filter_fresh_entries(
             list(result.scalars().unique().all()),
             max_age_days_no_deadline=self.no_deadline_max_age_days,
         )
         return len(fresh)
 
-    async def count_active_by_type_for_user(self, user_id: int) -> dict[str, int]:
+    async def count_active_by_type_for_user(
+        self, user_id: int, *, visible_before: datetime | None = None
+    ) -> dict[str, int]:
         user_channels = await self._user_channel_identifiers(user_id)
-        result = await self.session.execute(
+        query = (
             select(CatalogOpportunity)
             .options(joinedload(CatalogOpportunity.raw_message))
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
@@ -439,6 +446,9 @@ class OpportunityCatalogRepository:
             .where(CatalogOpportunity.opportunity_type != "другое")
             .where(self._catalog_access_condition(user_channels))
         )
+        if visible_before is not None:
+            query = query.where(CatalogOpportunity.classified_at <= visible_before)
+        result = await self.session.execute(query)
         fresh = filter_fresh_entries(
             list(result.scalars().unique().all()),
             max_age_days_no_deadline=self.no_deadline_max_age_days,
@@ -457,6 +467,7 @@ class OpportunityCatalogRepository:
         limit: int = 60,
         *,
         extra_tags: list[str] | None = None,
+        visible_before: datetime | None = None,
     ) -> list[CatalogOpportunity]:
         if not types:
             types = list(OPPORTUNITY_TYPES)
@@ -465,16 +476,20 @@ class OpportunityCatalogRepository:
         filter_by_type = set(normalized) != set(all_types)
         extra_wanted = {t.lower().strip() for t in (extra_tags or []) if t}
         user_channels = await self._user_channel_identifiers(user_id)
-        result = await self.session.execute(
+        query = (
             select(CatalogOpportunity)
             .options(joinedload(CatalogOpportunity.raw_message))
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
             .join(MonitoredChannel, RawMessage.monitored_channel_id == MonitoredChannel.id)
             .where(CatalogOpportunity.is_active.is_(True))
             .where(self._catalog_access_condition(user_channels))
-            .order_by(CatalogOpportunity.classified_at.desc())
-            .limit(limit * 4 if (filter_by_type or extra_wanted) else limit * 3)
         )
+        if visible_before is not None:
+            query = query.where(CatalogOpportunity.classified_at <= visible_before)
+        query = query.order_by(CatalogOpportunity.classified_at.desc()).limit(
+            limit * 4 if (filter_by_type or extra_wanted) else limit * 3
+        )
+        result = await self.session.execute(query)
         fresh = filter_fresh_entries(
             list(result.scalars().unique().all()),
             max_age_days_no_deadline=self.no_deadline_max_age_days,
@@ -501,6 +516,7 @@ class OpportunityCatalogRepository:
         types: list[str],
         *,
         max_rows: int = 5000,
+        visible_before: datetime | None = None,
     ) -> list[CatalogOpportunity]:
         """All fresh catalog rows for the user (for sorted/paginated Mini App lists)."""
         if not types:
@@ -509,16 +525,18 @@ class OpportunityCatalogRepository:
         all_types = [t for t in OPPORTUNITY_TYPES if t != "другое"]
         filter_by_type = set(normalized) != set(all_types)
         user_channels = await self._user_channel_identifiers(user_id)
-        result = await self.session.execute(
+        query = (
             select(CatalogOpportunity)
             .options(joinedload(CatalogOpportunity.raw_message))
             .join(RawMessage, CatalogOpportunity.raw_message_id == RawMessage.id)
             .join(MonitoredChannel, RawMessage.monitored_channel_id == MonitoredChannel.id)
             .where(CatalogOpportunity.is_active.is_(True))
             .where(self._catalog_access_condition(user_channels))
-            .order_by(CatalogOpportunity.classified_at.desc())
-            .limit(max_rows)
         )
+        if visible_before is not None:
+            query = query.where(CatalogOpportunity.classified_at <= visible_before)
+        query = query.order_by(CatalogOpportunity.classified_at.desc()).limit(max_rows)
+        result = await self.session.execute(query)
         fresh = filter_fresh_entries(
             list(result.scalars().unique().all()),
             max_age_days_no_deadline=self.no_deadline_max_age_days,

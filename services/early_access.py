@@ -1,43 +1,30 @@
-"""Premium: приоритетный доступ к новым конкурсам (публикуются на N часов раньше)."""
+"""Premium: приоритетный доступ к новым конкурсам (публикуются на N часов раньше).
+
+The cutoff must be applied as a SQL WHERE clause at the repository query level
+(see visible_before= on CatalogRepository methods) — never as a Python-side
+post-filter on an already-LIMITed page. The catalog feed queries only the top
+N most-recently-classified rows; when the classification backlog produces a
+burst of rows within the window (common — classification runs continuously),
+a post-filter can strip 100% of that page even though older, still-valid
+opportunities exist further back that the query never fetched.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
 from config import get_settings
-from db.models import CatalogOpportunity, User
+from db.models import User
 from services.subscription import is_paid_plan_active
 
 
-def _classified_at(entry: CatalogOpportunity) -> datetime | None:
-    classified = entry.classified_at
-    if classified is None:
+def early_access_cutoff(user: User, *, now: datetime | None = None) -> datetime | None:
+    """Timestamp to pass as visible_before=. None means no restriction (unlimited/paid/disabled)."""
+    if is_paid_plan_active(user):
         return None
-    if classified.tzinfo is None:
-        classified = classified.replace(tzinfo=timezone.utc)
-    return classified
-
-
-def is_in_early_access_window(entry: CatalogOpportunity, *, now: datetime | None = None) -> bool:
     settings = get_settings()
     hours = settings.premium_early_access_hours
     if hours <= 0:
-        return False
-    classified = _classified_at(entry)
-    if classified is None:
-        return False
+        return None
     now = now or datetime.now(timezone.utc)
-    return now - classified < timedelta(hours=hours)
-
-
-def filter_for_early_access(
-    entries: list[CatalogOpportunity],
-    user: User,
-    *,
-    now: datetime | None = None,
-) -> list[CatalogOpportunity]:
-    """Скрыть от free-пользователей карточки, которые ещё в премиум-окне."""
-    if is_paid_plan_active(user):
-        return entries
-    now = now or datetime.now(timezone.utc)
-    return [e for e in entries if not is_in_early_access_window(e, now=now)]
+    return now - timedelta(hours=hours)

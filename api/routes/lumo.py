@@ -351,9 +351,12 @@ async def lumo_categories(
     session: AsyncSession = Depends(get_db),
     room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> list[dict]:
+    from services.early_access import early_access_cutoff
+
     catalog_user = await effective_catalog_user(session, user, room_student_id)
-    counts = await catalog_repo(session).count_active_by_type_for_user(catalog_user.id)
-    total = await catalog_repo(session).count_active_for_user(catalog_user.id)
+    cutoff = early_access_cutoff(catalog_user)
+    counts = await catalog_repo(session).count_active_by_type_for_user(catalog_user.id, visible_before=cutoff)
+    total = await catalog_repo(session).count_active_for_user(catalog_user.id, visible_before=cutoff)
     return build_category_list(counts, total_entries=total)
 
 
@@ -366,29 +369,28 @@ async def lumo_catalog_bootstrap(
 ) -> dict:
     """Categories + first catalog page in one request (faster Mini App load)."""
     from db.base import async_session_factory
+    from services.early_access import early_access_cutoff
 
     catalog_user = await effective_catalog_user(session, user, room_student_id)
+    cutoff = early_access_cutoff(catalog_user)
     fetch_cap = min(120, limit * 6 + 24)
     user_id = catalog_user.id
 
     async def load_counts() -> tuple[dict[str, int], int]:
         async with async_session_factory() as s:
             repo = catalog_repo(s)
-            counts = await repo.count_active_by_type_for_user(user_id)
-            total = await repo.count_active_for_user(user_id)
+            counts = await repo.count_active_by_type_for_user(user_id, visible_before=cutoff)
+            total = await repo.count_active_for_user(user_id, visible_before=cutoff)
             return counts, total
 
     async def load_page() -> list:
         async with async_session_factory() as s:
             return await catalog_repo(s).list_all_active_for_user(
-                user_id, ALL_TYPES, max_rows=fetch_cap
+                user_id, ALL_TYPES, max_rows=fetch_cap, visible_before=cutoff
             )
-
-    from services.early_access import filter_for_early_access
 
     (counts, total), fresh = await asyncio.gather(load_counts(), load_page())
     unique = dedupe_opportunities(fresh)
-    unique = filter_for_early_access(unique, catalog_user)
     categories = build_category_list(counts, total_entries=total)
     sorted_items = sort_opportunities_by_deadline(unique)
     page = sorted_items[:limit]
@@ -434,11 +436,12 @@ async def lumo_opportunities(
     session: AsyncSession = Depends(get_db),
     room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> dict:
-    from services.early_access import filter_for_early_access
+    from services.early_access import early_access_cutoff
     from services.match_score import raw_match_score
     from services.opportunity_traits import matches_format_filter, matches_team_filter
 
     catalog_user = await effective_catalog_user(session, user, room_student_id)
+    cutoff = early_access_cutoff(catalog_user)
     repo = catalog_repo(session)
     page_limit = page_size or limit
 
@@ -453,9 +456,10 @@ async def lumo_opportunities(
         types_filter = ALL_TYPES
 
     fetch_cap = min(max(page_limit + offset + page_limit, 60), 200)
-    items = await repo.get_active_for_user(catalog_user.id, types_filter, limit=fetch_cap)
+    items = await repo.get_active_for_user(
+        catalog_user.id, types_filter, limit=fetch_cap, visible_before=cutoff
+    )
     unique = dedupe_opportunities(items)
-    unique = filter_for_early_access(unique, catalog_user)
 
     if q:
         needle = q.strip().lower()
@@ -546,21 +550,25 @@ async def lumo_similar_opportunities(
     room_student_id: int | None = Depends(read_room_student_id_header),
     limit: int = Query(default=6, ge=1, le=12),
 ) -> dict:
-    from services.early_access import filter_for_early_access
+    from services.early_access import early_access_cutoff
     from services.similar_opportunities import find_similar
 
     catalog_user = await effective_catalog_user(session, user, room_student_id)
+    cutoff = early_access_cutoff(catalog_user)
     repo = catalog_repo(session)
     row = await repo.get_entry_with_channel(item_id)
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
     entry, _channel = row
 
-    pool = await repo.get_active_for_user(catalog_user.id, [entry.opportunity_type], limit=80)
+    pool = await repo.get_active_for_user(
+        catalog_user.id, [entry.opportunity_type], limit=80, visible_before=cutoff
+    )
     if len(pool) < limit + 1:
-        pool = pool + await repo.get_active_for_user(catalog_user.id, ALL_TYPES, limit=120)
+        pool = pool + await repo.get_active_for_user(
+            catalog_user.id, ALL_TYPES, limit=120, visible_before=cutoff
+        )
     pool = dedupe_opportunities(pool)
-    pool = filter_for_early_access(pool, catalog_user)
 
     similar = find_similar(entry, pool, limit=limit)
     return {"items": [serialize_opportunity(e, user=catalog_user) for e in similar]}
