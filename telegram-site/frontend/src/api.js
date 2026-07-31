@@ -123,6 +123,12 @@ export function initTelegramApp() {
   return tg;
 }
 
+export function openExternalLink(url) {
+  const tg = getTelegram();
+  if (tg?.openLink) tg.openLink(url);
+  else window.open(url, '_blank');
+}
+
 export function openBugReport(message, supportContact) {
   const tg = getTelegram();
   const handle = (supportContact || '@taton4i').replace('@', '');

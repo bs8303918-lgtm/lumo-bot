@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, PartyPopper } from 'lucide-react';
-import { apiFetch, haptic } from '../api';
+import { ArrowRight, PartyPopper, Sparkles } from 'lucide-react';
+import { apiFetch, haptic, openExternalLink } from '../api';
 import OpportunityCard from './OpportunityCard';
+
+const LANDING_URL = 'https://lumo-site-mu.vercel.app/';
 
 const ONBOARDING_KEY = 'lumo-onboarding-done';
 
@@ -96,7 +98,25 @@ const TEAM_OPTIONS = [
   { id: 'solo', label: 'Соло' },
 ];
 
-const STEPS = ['grade', 'subjects', 'domains', 'types', 'english', 'format', 'team', 'region', 'about', 'matches'];
+const STEPS = [
+  'grade',
+  'subjects',
+  'domains',
+  'types',
+  'english',
+  'format',
+  'team',
+  'region',
+  'about',
+  'matches',
+  'regFirstName',
+  'regLastName',
+  'regEmail',
+  'regPassword',
+  'regDone',
+];
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function ProgressBar({ step }) {
   const pct = ((step + 1) / STEPS.length) * 100;
@@ -153,6 +173,56 @@ function ContinueButton({ onClick, disabled, children }) {
   );
 }
 
+function useLivePreview(params, enabled) {
+  const key = JSON.stringify(params);
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setItems([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const search = new URLSearchParams({ sort: 'relevance', limit: '2', ...JSON.parse(key) });
+        const data = await apiFetch(`/lumo/opportunities?${search.toString()}`);
+        if (!cancelled) setItems((data.items ?? []).slice(0, 2));
+      } catch {
+        if (!cancelled) setItems([]);
+      }
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, enabled]);
+
+  return items;
+}
+
+function LivePreviewList({ items }) {
+  if (!items.length) return null;
+  return (
+    <div className="mb-4 space-y-1.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide flex items-center gap-1" style={{ color: 'var(--lumo-accent)' }}>
+        <Sparkles size={12} /> Уже нашли похожее
+      </p>
+      {items.map((it) => (
+        <div
+          key={it.id}
+          className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px]"
+          style={{ background: 'var(--lumo-surface-muted)' }}
+        >
+          <span>{it.emoji || '✨'}</span>
+          <span className="font-semibold truncate">{it.title}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [grade, setGrade] = useState('');
@@ -172,6 +242,12 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [matchError, setMatchError] = useState('');
   const [items, setItems] = useState([]);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regSubmitting, setRegSubmitting] = useState(false);
+  const [regError, setRegError] = useState('');
 
   const step = STEPS[stepIndex];
   const goTo = (i) => setStepIndex(Math.max(0, Math.min(STEPS.length - 1, i)));
@@ -181,6 +257,12 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
   const toggleSubject = toggleFrom(setSubjects);
   const toggleDomain = toggleFrom(setDomains);
   const toggleType = toggleFrom(setTypes);
+
+  const typesPreview = useLivePreview({ types: types.join(',') }, step === 'types' && types.length > 0);
+  const lastDomainLabel = domains.length
+    ? (DOMAIN_OPTIONS.find((o) => o.id === domains[domains.length - 1])?.label || '').replace(/^\S+\s/, '')
+    : '';
+  const domainsPreview = useLivePreview({ q: lastDomainLabel }, step === 'domains' && Boolean(lastDomainLabel));
 
   const finalGrade = grade === OTHER ? customGrade.trim() : grade;
   const finalRegion = region === OTHER ? customRegion.trim() : region;
@@ -232,7 +314,29 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
     } finally {
       setLoadingMatches(false);
       haptic('success');
-      goTo(STEPS.length - 1);
+      goTo(STEPS.indexOf('matches'));
+    }
+  };
+
+  const submitRegistration = async () => {
+    setRegSubmitting(true);
+    setRegError('');
+    try {
+      await apiFetch('/auth/set-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: regEmail.trim().toLowerCase(),
+          password: regPassword,
+        }),
+      });
+      haptic('success');
+      goTo(stepIndex + 1);
+    } catch (err) {
+      setRegError(err.message || 'Не получилось сохранить — попробуй другой email');
+    } finally {
+      setRegSubmitting(false);
     }
   };
 
@@ -285,6 +389,14 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
             >
               Продолжить
             </ContinueButton>
+            <button
+              type="button"
+              onClick={() => openExternalLink(LANDING_URL)}
+              className="w-full text-center text-[12px] font-semibold mt-5 underline"
+              style={{ color: 'var(--lumo-text-muted)' }}
+            >
+              Наш сайт: lumo-site-mu.vercel.app
+            </button>
           </div>
         )}
 
@@ -328,6 +440,7 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
               onChange={setCustomDomains}
               placeholder="Не нашёл свою сферу? Впиши через запятую"
             />
+            <LivePreviewList items={domainsPreview} />
             <ContinueButton onClick={() => goTo(3)} disabled={domains.length === 0 && !customDomains.trim()}>
               Продолжить
             </ContinueButton>
@@ -352,6 +465,7 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
               onChange={setCustomTypes}
               placeholder="Что-то ещё? Впиши свой вариант"
             />
+            <LivePreviewList items={typesPreview} />
             <ContinueButton onClick={() => goTo(4)} disabled={types.length === 0 && !customTypes.trim()}>
               Продолжить
             </ContinueButton>
@@ -479,6 +593,97 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
               </div>
             )}
 
+            <ContinueButton onClick={() => goTo(stepIndex + 1)}>Продолжить</ContinueButton>
+          </div>
+        )}
+
+        {step === 'regFirstName' && (
+          <div>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Как тебя зовут?</h1>
+            <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
+              Заодно сможешь заходить в Lumo с сайта, не только из Telegram
+            </p>
+            <input
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Имя"
+              className="lumo-form-input mb-8"
+            />
+            <ContinueButton onClick={() => goTo(stepIndex + 1)} disabled={!firstName.trim()}>
+              Продолжить
+            </ContinueButton>
+          </div>
+        )}
+
+        {step === 'regLastName' && (
+          <div>
+            <h1 className="text-[24px] font-bold mb-2 text-center">А фамилия?</h1>
+            <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
+              Необязательно
+            </p>
+            <input
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Фамилия"
+              className="lumo-form-input mb-8"
+            />
+            <ContinueButton onClick={() => goTo(stepIndex + 1)}>Продолжить</ContinueButton>
+          </div>
+        )}
+
+        {step === 'regEmail' && (
+          <div>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Email для входа на сайт</h1>
+            <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
+              На lumo-site-mu.vercel.app сможешь заходить тем же аккаунтом
+            </p>
+            <input
+              type="email"
+              value={regEmail}
+              onChange={(e) => setRegEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="lumo-form-input mb-8"
+            />
+            <ContinueButton onClick={() => goTo(stepIndex + 1)} disabled={!EMAIL_PATTERN.test(regEmail.trim())}>
+              Продолжить
+            </ContinueButton>
+          </div>
+        )}
+
+        {step === 'regPassword' && (
+          <div>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Придумай пароль</h1>
+            <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
+              Минимум 8 символов
+            </p>
+            <input
+              type="password"
+              value={regPassword}
+              onChange={(e) => setRegPassword(e.target.value)}
+              placeholder="Пароль"
+              className="lumo-form-input mb-4"
+            />
+            {regError && <p className="text-[12px] text-center text-red-400 mb-4">{regError}</p>}
+            <ContinueButton onClick={submitRegistration} disabled={regPassword.length < 8 || regSubmitting}>
+              {regSubmitting ? 'Сохраняю…' : 'Создать пароль'}
+            </ContinueButton>
+          </div>
+        )}
+
+        {step === 'regDone' && (
+          <div>
+            <div className="text-center mb-6">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ background: 'linear-gradient(135deg, var(--lumo-accent-light), var(--lumo-accent))' }}
+              >
+                <PartyPopper size={26} className="text-white" />
+              </div>
+              <h1 className="text-[24px] font-bold mb-2">Готово!</h1>
+              <p className="text-[13px]" style={{ color: 'var(--lumo-text-muted)' }}>
+                Теперь можешь заходить в Lumo и с сайта — тем же email и паролем.
+              </p>
+            </div>
             <ContinueButton onClick={done}>Перейти в Lumo</ContinueButton>
           </div>
         )}
