@@ -28,7 +28,7 @@ export function tagStyle(tag) {
 
 export function itemTags(item) {
   if (item?.tags?.length) return item.tags;
-  return [{ type: item.type, label: item.label }];
+  return [{ type: item?.type, label: item?.label }];
 }
 
 export function typeLabel(type) {

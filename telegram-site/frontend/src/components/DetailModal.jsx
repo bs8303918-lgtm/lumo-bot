@@ -352,9 +352,14 @@ export default function DetailModal({ item, profile, onClose }) {
 
   if (!item) return null;
 
-  const tags = itemTags(detail);
-  const deadline = formatDeadlineMeta(detail.deadline);
-  const handle = sourceHandle(detail);
+  // `detail` is stale (or still null) for one render after `item` changes — the fetch above
+  // updates it asynchronously via an effect, which runs after this render commits. Falling
+  // back to `item` (never null past the guard above) avoids reading fields off a stale value.
+  const view = detail && detail.id === item.id ? detail : item;
+
+  const tags = itemTags(view);
+  const deadline = formatDeadlineMeta(view.deadline);
+  const handle = sourceHandle(view);
   const subscription = profile?.subscription;
   const isPremium = Boolean(subscription?.isPaid);
   const canRequestMentor = isPremium && MENTOR_ADDON_PLANS.has((subscription?.plan || '').toLowerCase());
@@ -362,12 +367,12 @@ export default function DetailModal({ item, profile, onClose }) {
   const addToTracker = () => {
     haptic('light');
     addCard({
-      title: detail.title,
-      org: detail.sourceChannelName || '',
-      deadline: detail.deadline || '',
-      link: detail.applicationUrl || detail.messageLink || '',
-      sourceId: detail.id,
-      checklistLabels: detail.brief?.checklist,
+      title: view.title,
+      org: view.sourceChannelName || '',
+      deadline: view.deadline || '',
+      link: view.applicationUrl || view.messageLink || '',
+      sourceId: view.id,
+      checklistLabels: view.brief?.checklist,
     });
     setInTracker(true);
   };
@@ -380,7 +385,7 @@ export default function DetailModal({ item, profile, onClose }) {
         </button>
 
         <div className="flex items-start justify-between gap-3 mb-1 pr-8">
-          <h3 className="text-xl font-bold leading-snug">{detail.title}</h3>
+          <h3 className="text-xl font-bold leading-snug">{view.title}</h3>
           <div className="flex items-center gap-2 shrink-0">
             <TagChips tags={tags} />
             <button
@@ -402,60 +407,60 @@ export default function DetailModal({ item, profile, onClose }) {
           </div>
         </div>
 
-        {typeof detail.matchScore === 'number' && (
+        {typeof view.matchScore === 'number' && (
           <p
             className="inline-block text-[11px] font-bold px-2.5 py-1 rounded-full mb-3"
             style={{ background: 'var(--lumo-profile-chip-bg)', color: 'var(--lumo-profile-chip-text)' }}
           >
-            🎯 {detail.matchScore}% совпадение
+            🎯 {view.matchScore}% совпадение
           </p>
         )}
 
         <p className="text-[14px] mb-4 leading-relaxed" style={{ color: 'var(--lumo-text-muted)' }}>
-          {detail.fullText || detail.description}
+          {view.fullText || view.description}
         </p>
 
-        <AiBriefSection brief={detail.brief} />
-        <PeersRow itemId={detail.id} />
+        <AiBriefSection brief={view.brief} />
+        <PeersRow itemId={view.id} />
 
         <div className="text-[14px] space-y-2.5 mb-5">
           <p className="flex items-center gap-2" style={{ color: deadline.urgent ? 'var(--lumo-urgent)' : 'var(--lumo-text)' }}>
             <span style={{ color: 'var(--lumo-text-muted)' }}>Дедлайн:</span> {deadline.label}
           </p>
           <p>
-            <span style={{ color: 'var(--lumo-text-muted)' }}>Канал:</span> {detail.sourceChannelName}
+            <span style={{ color: 'var(--lumo-text-muted)' }}>Канал:</span> {view.sourceChannelName}
             {handle && (
               <span className="ml-2" style={{ color: 'var(--lumo-link)' }}>
                 {handle}
               </span>
             )}
           </p>
-          {detail.requirements && (
+          {view.requirements && (
             <p>
-              <span style={{ color: 'var(--lumo-text-muted)' }}>Требования:</span> {detail.requirements}
+              <span style={{ color: 'var(--lumo-text-muted)' }}>Требования:</span> {view.requirements}
             </p>
           )}
-          {detail.applicationUrl && (
+          {view.applicationUrl && (
             <p>
               <span style={{ color: 'var(--lumo-text-muted)' }}>Заявка:</span>{' '}
               <button
                 type="button"
                 className="break-all text-left underline"
                 style={{ color: 'var(--lumo-link)' }}
-                onClick={() => openTrackedLink(detail.applicationUrl, detail.id, 'apply')}
+                onClick={() => openTrackedLink(view.applicationUrl, view.id, 'apply')}
               >
                 Открыть
               </button>
             </p>
           )}
-          {detail.messageLink && (
+          {view.messageLink && (
             <p>
               <span style={{ color: 'var(--lumo-text-muted)' }}>Пост:</span>{' '}
               <button
                 type="button"
                 className="underline"
                 style={{ color: 'var(--lumo-link)' }}
-                onClick={() => openTrackedLink(detail.messageLink, detail.id, 'telegram')}
+                onClick={() => openTrackedLink(view.messageLink, view.id, 'telegram')}
               >
                 Telegram
               </button>
@@ -464,21 +469,21 @@ export default function DetailModal({ item, profile, onClose }) {
         </div>
 
         <div className="grid grid-cols-2 gap-2 mb-2">
-          {detail.applicationUrl && (
+          {view.applicationUrl && (
             <button
               type="button"
-              onClick={() => openTrackedLink(detail.applicationUrl, detail.id, 'apply')}
+              onClick={() => openTrackedLink(view.applicationUrl, view.id, 'apply')}
               className="py-3 rounded-xl font-bold text-white text-[13px]"
               style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}
             >
               Подать заявку
             </button>
           )}
-          {detail.messageLink && (
+          {view.messageLink && (
             <button
               type="button"
-              onClick={() => openTrackedLink(detail.messageLink, detail.id, 'telegram')}
-              className={`py-3 rounded-xl font-bold text-[13px] ${detail.applicationUrl ? '' : 'col-span-2'}`}
+              onClick={() => openTrackedLink(view.messageLink, view.id, 'telegram')}
+              className={`py-3 rounded-xl font-bold text-[13px] ${view.applicationUrl ? '' : 'col-span-2'}`}
               style={{ background: 'var(--lumo-accent-soft)', color: 'var(--lumo-accent)' }}
             >
               Открыть в Telegram
@@ -496,10 +501,10 @@ export default function DetailModal({ item, profile, onClose }) {
           {inTracker ? 'Уже в заявках' : '+ В мои заявки'}
         </button>
 
-        <MentorButton itemId={detail.id} canRequestMentor={canRequestMentor} />
-        <AssistantSection itemId={detail.id} isPremium={isPremium} />
-        <SimilarSection itemId={detail.id} />
-        <ReviewsSection itemId={detail.id} />
+        <MentorButton itemId={view.id} canRequestMentor={canRequestMentor} />
+        <AssistantSection itemId={view.id} isPremium={isPremium} />
+        <SimilarSection itemId={view.id} />
+        <ReviewsSection itemId={view.id} />
 
         <button type="button" onClick={onClose} className="w-full py-3.5 rounded-xl font-bold lumo-btn-primary">
           Закрыть
