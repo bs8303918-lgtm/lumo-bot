@@ -13,7 +13,9 @@ function markOnboardingDone() {
   localStorage.setItem(ONBOARDING_KEY, '1');
 }
 
-const GRADE_OPTIONS = ['9 класс', '10 класс', '11 класс', '1 курс', '2 курс', '3 курс', '4 курс', 'Выпускник'];
+const OTHER = 'Другое';
+
+const GRADE_OPTIONS = ['9 класс', '10 класс', '11 класс', '1 курс', '2 курс', '3 курс', '4 курс', 'Выпускник', OTHER];
 const SUBJECT_OPTIONS = ['Математика', 'Физика', 'Информатика', 'Биология', 'Химия', 'Экономика', 'Английский язык', 'История', 'Дизайн', 'Робототехника'];
 const ENGLISH_LEVEL_OPTIONS = [
   { id: 'none', label: 'Не оцениваю' },
@@ -23,22 +25,78 @@ const ENGLISH_LEVEL_OPTIONS = [
   { id: 'c1', label: 'C1 — продвинутый' },
   { id: 'c2', label: 'C2 — свободный' },
 ];
-const REGION_OPTIONS = ['Алматы', 'Астана', 'Шымкент', 'Караганда', 'Актобе'];
-const INTEREST_OPTIONS = [
-  { id: 'it', label: 'IT / робототехника' },
-  { id: 'business', label: 'Бизнес / экономика' },
-  { id: 'science', label: 'Наука' },
-  { id: 'languages', label: 'Языки' },
-  { id: 'creative', label: 'Творчество' },
-];
-const GOAL_OPTIONS = [
-  { id: 'грант', label: 'Гранты' },
-  { id: 'хакатон', label: 'Хакатоны' },
-  { id: 'стажировка', label: 'Стажировки' },
-  { id: 'олимпиада', label: 'Олимпиады' },
+const REGION_OPTIONS = ['Алматы', 'Астана', 'Шымкент', 'Караганда', 'Актобе', OTHER];
+
+// Полный список сфер — тот же словарь, который распознаёт бэкенд (services/interest_domains.py),
+// чтобы выбор реально попадал в категории, а не терялся.
+const DOMAIN_OPTIONS = [
+  { id: 'it', label: '💻 IT' },
+  { id: 'робототехника', label: '🤖 Робототехника' },
+  { id: 'инженерия', label: '⚙️ Инженерия' },
+  { id: 'кибербезопасность', label: '🔐 Кибербезопасность' },
+  { id: 'математика', label: '📐 Математика' },
+  { id: 'физика', label: '⚛️ Физика' },
+  { id: 'информатика', label: '🖥 Информатика' },
+  { id: 'stem', label: '🔭 STEM' },
+  { id: 'биология', label: '🔬 Биология' },
+  { id: 'биотех', label: '🧬 Биотех' },
+  { id: 'нейронаука', label: '🧬 Нейронаука' },
+  { id: 'медицина', label: '🏥 Медицина' },
+  { id: 'химия', label: '⚗️ Химия' },
+  { id: 'астрофизика', label: '🌌 Астрофизика' },
+  { id: 'экология', label: '🌿 Экология' },
+  { id: 'сельское хозяйство', label: '🌾 Агро' },
+  { id: 'стартапы', label: '🚀 Стартапы' },
+  { id: 'бизнес', label: '💼 Бизнес' },
+  { id: 'экономика', label: '📊 Экономика' },
+  { id: 'финансы', label: '💹 Финансы' },
+  { id: 'право', label: '⚖️ Право' },
+  { id: 'политология', label: '🏛 Политология' },
+  { id: 'дизайн', label: '🎨 Дизайн' },
+  { id: 'искусство', label: '🎭 Искусство' },
+  { id: 'архитектура', label: '🏗 Архитектура' },
+  { id: 'музыка', label: '🎵 Музыка' },
+  { id: 'кино', label: '🎥 Кино' },
+  { id: 'медиа', label: '🎬 Медиа' },
+  { id: 'журналистика', label: '📰 Журналистика' },
+  { id: 'лингвистика', label: '🗣 Лингвистика' },
+  { id: 'психология', label: '🧠 Психология' },
+  { id: 'социология', label: '👥 Социология' },
+  { id: 'философия', label: '📚 Философия' },
+  { id: 'география', label: '🗺 География' },
+  { id: 'edtech', label: '📱 EdTech' },
+  { id: 'medtech', label: '🩺 MedTech' },
+  { id: 'спорт', label: '🏅 Спорт' },
+  { id: 'денежные призы', label: '💵 Денежные призы' },
 ];
 
-const STEPS = ['grade', 'subjects', 'english', 'interests', 'region', 'goal', 'matches'];
+// Полный список типов возможностей — тот же, что в каталоге (db/repositories/opportunity_catalog.py).
+const TYPE_OPTIONS = [
+  { id: 'грант', label: '💰 Гранты' },
+  { id: 'стипендия', label: '🎓 Стипендии' },
+  { id: 'хакатон', label: '💻 Хакатоны' },
+  { id: 'стажировка', label: '🏢 Стажировки' },
+  { id: 'конкурс', label: '🏆 Конкурсы' },
+  { id: 'олимпиада', label: '🥇 Олимпиады' },
+  { id: 'эссе', label: '✍️ Конкурсы эссе' },
+  { id: 'кейс', label: '📋 Кейс-чемпионаты' },
+  { id: 'летняя_школа', label: '☀️ Летние школы' },
+  { id: 'курс', label: '📚 Курсы' },
+  { id: 'мероприятие', label: '📅 Мероприятия' },
+];
+
+const FORMAT_OPTIONS = [
+  { id: 'any', label: 'Без разницы' },
+  { id: 'online', label: 'Онлайн' },
+  { id: 'offline', label: 'Офлайн' },
+];
+const TEAM_OPTIONS = [
+  { id: 'any', label: 'Без разницы' },
+  { id: 'team', label: 'В команде' },
+  { id: 'solo', label: 'Соло' },
+];
+
+const STEPS = ['grade', 'subjects', 'domains', 'types', 'english', 'format', 'team', 'region', 'about', 'matches'];
 
 function ProgressBar({ step }) {
   const pct = ((step + 1) / STEPS.length) * 100;
@@ -67,6 +125,17 @@ function Chip({ active, onClick, children }) {
   );
 }
 
+function CustomTextInput({ value, onChange, placeholder }) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="lumo-form-input mb-8"
+    />
+  );
+}
+
 function ContinueButton({ onClick, disabled, children }) {
   return (
     <button
@@ -87,11 +156,19 @@ function ContinueButton({ onClick, disabled, children }) {
 export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [grade, setGrade] = useState('');
+  const [customGrade, setCustomGrade] = useState('');
   const [subjects, setSubjects] = useState([]);
+  const [customSubjects, setCustomSubjects] = useState('');
+  const [domains, setDomains] = useState([]);
+  const [customDomains, setCustomDomains] = useState('');
+  const [types, setTypes] = useState([]);
+  const [customTypes, setCustomTypes] = useState('');
   const [englishLevel, setEnglishLevel] = useState('');
-  const [interests, setInterests] = useState([]);
+  const [format, setFormat] = useState('any');
+  const [team, setTeam] = useState('any');
   const [region, setRegion] = useState('');
-  const [goals, setGoals] = useState([]);
+  const [customRegion, setCustomRegion] = useState('');
+  const [about, setAbout] = useState('');
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [matchError, setMatchError] = useState('');
   const [items, setItems] = useState([]);
@@ -102,26 +179,43 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
   const toggleFrom = (setFn) => (id) =>
     setFn((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const toggleSubject = toggleFrom(setSubjects);
-  const toggleInterest = toggleFrom(setInterests);
-  const toggleGoal = toggleFrom(setGoals);
+  const toggleDomain = toggleFrom(setDomains);
+  const toggleType = toggleFrom(setTypes);
+
+  const finalGrade = grade === OTHER ? customGrade.trim() : grade;
+  const finalRegion = region === OTHER ? customRegion.trim() : region;
 
   const finish = async () => {
     setLoadingMatches(true);
     setMatchError('');
 
+    const subjectList = [...subjects, ...customSubjects.split(',').map((s) => s.trim()).filter(Boolean)];
+
     apiFetch('/users/profile', {
       method: 'PUT',
-      body: JSON.stringify({ grade, region, englishLevel, subjects }),
+      body: JSON.stringify({ grade: finalGrade, region: finalRegion, englishLevel, subjects: subjectList }),
     }).catch(() => {});
 
-    const interestLabels = INTEREST_OPTIONS.filter((o) => interests.includes(o.id)).map((o) => o.label);
-    const goalLabels = GOAL_OPTIONS.filter((o) => goals.includes(o.id)).map((o) => o.label);
+    const domainLabels = [
+      ...DOMAIN_OPTIONS.filter((o) => domains.includes(o.id)).map((o) => o.label.replace(/^\S+\s/, '')),
+      ...customDomains.split(',').map((s) => s.trim()).filter(Boolean),
+    ];
+    const typeLabels = [
+      ...TYPE_OPTIONS.filter((o) => types.includes(o.id)).map((o) => o.label.replace(/^\S+\s/, '')),
+      ...customTypes.split(',').map((s) => s.trim()).filter(Boolean),
+    ];
+    const formatText = format === 'online' ? 'Формат: онлайн' : format === 'offline' ? 'Формат: офлайн' : '';
+    const teamText = team === 'team' ? 'Ищу команду' : team === 'solo' ? 'Готов подавать соло' : '';
+
     const query = [
-      grade && `Учусь: ${grade}`,
-      subjects.length && `Предметы: ${subjects.join(', ')}`,
-      interestLabels.length && `Интересы: ${interestLabels.join(', ')}`,
-      region && `Город: ${region}`,
-      goalLabels.length && `Ищу: ${goalLabels.join(', ')}`,
+      finalGrade && `Учусь: ${finalGrade}`,
+      subjectList.length && `Предметы: ${subjectList.join(', ')}`,
+      domainLabels.length && `Интересы: ${domainLabels.join(', ')}`,
+      typeLabels.length && `Ищу: ${typeLabels.join(', ')}`,
+      finalRegion && `Город: ${finalRegion}`,
+      formatText,
+      teamText,
+      about.trim(),
     ]
       .filter(Boolean)
       .join('. ');
@@ -175,14 +269,20 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
             <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
               30 секунд — и увидишь подборку под себя
             </p>
-            <div className="flex flex-wrap justify-center gap-2 mb-8">
+            <div className="flex flex-wrap justify-center gap-2 mb-4">
               {GRADE_OPTIONS.map((g) => (
                 <Chip key={g} active={grade === g} onClick={() => setGrade(g)}>
                   {g}
                 </Chip>
               ))}
             </div>
-            <ContinueButton onClick={() => goTo(1)} disabled={!grade}>
+            {grade === OTHER && (
+              <CustomTextInput value={customGrade} onChange={setCustomGrade} placeholder="Свой вариант" />
+            )}
+            <ContinueButton
+              onClick={() => goTo(1)}
+              disabled={!grade || (grade === OTHER && !customGrade.trim())}
+            >
               Продолжить
             </ContinueButton>
           </div>
@@ -194,14 +294,67 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
             <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
               Поможет находить профильные олимпиады и стипендии
             </p>
-            <div className="flex flex-wrap justify-center gap-2 mb-8">
+            <div className="flex flex-wrap justify-center gap-2 mb-4">
               {SUBJECT_OPTIONS.map((s) => (
                 <Chip key={s} active={subjects.includes(s)} onClick={() => toggleSubject(s)}>
                   {s}
                 </Chip>
               ))}
             </div>
+            <CustomTextInput
+              value={customSubjects}
+              onChange={setCustomSubjects}
+              placeholder="Своего предмета нет в списке? Впиши через запятую"
+            />
             <ContinueButton onClick={() => goTo(2)}>Продолжить</ContinueButton>
+          </div>
+        )}
+
+        {step === 'domains' && (
+          <div>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Что тебе интересно?</h1>
+            <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
+              Вся наша карта сфер — выбери сколько угодно
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 mb-4 max-h-[42vh] overflow-y-auto py-1">
+              {DOMAIN_OPTIONS.map((o) => (
+                <Chip key={o.id} active={domains.includes(o.id)} onClick={() => toggleDomain(o.id)}>
+                  {o.label}
+                </Chip>
+              ))}
+            </div>
+            <CustomTextInput
+              value={customDomains}
+              onChange={setCustomDomains}
+              placeholder="Не нашёл свою сферу? Впиши через запятую"
+            />
+            <ContinueButton onClick={() => goTo(3)} disabled={domains.length === 0 && !customDomains.trim()}>
+              Продолжить
+            </ContinueButton>
+          </div>
+        )}
+
+        {step === 'types' && (
+          <div>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Что именно ищешь?</h1>
+            <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
+              Все категории конкурсов — можно выбрать несколько
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 mb-4 max-h-[42vh] overflow-y-auto py-1">
+              {TYPE_OPTIONS.map((o) => (
+                <Chip key={o.id} active={types.includes(o.id)} onClick={() => toggleType(o.id)}>
+                  {o.label}
+                </Chip>
+              ))}
+            </div>
+            <CustomTextInput
+              value={customTypes}
+              onChange={setCustomTypes}
+              placeholder="Что-то ещё? Впиши свой вариант"
+            />
+            <ContinueButton onClick={() => goTo(4)} disabled={types.length === 0 && !customTypes.trim()}>
+              Продолжить
+            </ContinueButton>
           </div>
         )}
 
@@ -218,26 +371,41 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
                 </Chip>
               ))}
             </div>
-            <ContinueButton onClick={() => goTo(3)}>Продолжить</ContinueButton>
+            <ContinueButton onClick={() => goTo(5)}>Продолжить</ContinueButton>
           </div>
         )}
 
-        {step === 'interests' && (
+        {step === 'format' && (
           <div>
-            <h1 className="text-[24px] font-bold mb-2 text-center">Что тебе интересно?</h1>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Какой формат удобнее?</h1>
             <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
-              Можно выбрать несколько
+              Онлайн или готов ехать очно
             </p>
             <div className="flex flex-wrap justify-center gap-2 mb-8">
-              {INTEREST_OPTIONS.map((o) => (
-                <Chip key={o.id} active={interests.includes(o.id)} onClick={() => toggleInterest(o.id)}>
+              {FORMAT_OPTIONS.map((o) => (
+                <Chip key={o.id} active={format === o.id} onClick={() => setFormat(o.id)}>
                   {o.label}
                 </Chip>
               ))}
             </div>
-            <ContinueButton onClick={() => goTo(4)} disabled={interests.length === 0}>
-              Продолжить
-            </ContinueButton>
+            <ContinueButton onClick={() => goTo(6)}>Продолжить</ContinueButton>
+          </div>
+        )}
+
+        {step === 'team' && (
+          <div>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Команда или соло?</h1>
+            <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
+              Некоторые конкурсы требуют команду — не будем их зря подсовывать
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 mb-8">
+              {TEAM_OPTIONS.map((o) => (
+                <Chip key={o.id} active={team === o.id} onClick={() => setTeam(o.id)}>
+                  {o.label}
+                </Chip>
+              ))}
+            </div>
+            <ContinueButton onClick={() => goTo(7)}>Продолжить</ContinueButton>
           </div>
         )}
 
@@ -247,34 +415,40 @@ export default function OnboardingWizard({ onFinish, onSkip, onOpenItem }) {
             <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
               Покажем возможности рядом с тобой
             </p>
-            <div className="flex flex-wrap justify-center gap-2 mb-8">
+            <div className="flex flex-wrap justify-center gap-2 mb-4">
               {REGION_OPTIONS.map((r) => (
                 <Chip key={r} active={region === r} onClick={() => setRegion(r)}>
                   {r}
                 </Chip>
               ))}
             </div>
-            <ContinueButton onClick={() => goTo(5)} disabled={!region}>
+            {region === OTHER && (
+              <CustomTextInput value={customRegion} onChange={setCustomRegion} placeholder="Впиши свой город" />
+            )}
+            <ContinueButton
+              onClick={() => goTo(8)}
+              disabled={!region || (region === OTHER && !customRegion.trim())}
+            >
               Продолжить
             </ContinueButton>
           </div>
         )}
 
-        {step === 'goal' && (
+        {step === 'about' && (
           <div>
-            <h1 className="text-[24px] font-bold mb-2 text-center">Что ищешь в первую очередь?</h1>
+            <h1 className="text-[24px] font-bold mb-2 text-center">Расскажи о себе</h1>
             <p className="text-[13px] text-center mb-6" style={{ color: 'var(--lumo-text-muted)' }}>
-              Можно выбрать несколько
+              Проекты, достижения, чего хочешь добиться — что угодно, что поможет AI подобрать точнее. Необязательно.
             </p>
-            <div className="flex flex-wrap justify-center gap-2 mb-4">
-              {GOAL_OPTIONS.map((o) => (
-                <Chip key={o.id} active={goals.includes(o.id)} onClick={() => toggleGoal(o.id)}>
-                  {o.label}
-                </Chip>
-              ))}
-            </div>
+            <textarea
+              value={about}
+              onChange={(e) => setAbout(e.target.value)}
+              rows={4}
+              placeholder="Например: занимаюсь Python 2 года, делал школьный проект по эко-стартапам, хочу поступить в вуз за рубежом"
+              className="lumo-form-input resize-none mb-4"
+            />
             {matchError && <p className="text-[12px] text-center text-red-400 mb-4">{matchError}</p>}
-            <ContinueButton onClick={finish} disabled={goals.length === 0 || loadingMatches}>
+            <ContinueButton onClick={finish} disabled={loadingMatches}>
               {loadingMatches ? 'Lumo подбирает…' : 'Найти мою подборку'}
             </ContinueButton>
           </div>
