@@ -34,6 +34,15 @@ export default function OpportunityCard({
       <div className="flex items-start justify-between gap-3 mb-2.5">
         <h2 className="text-[15px] font-bold leading-snug line-clamp-2 flex-1 pr-1">{item.title}</h2>
         <div className="flex items-center gap-1.5 shrink-0">
+          {typeof item.matchScore === 'number' && (
+            <span
+              title="Совпадение с профилем"
+              className="text-[10px] px-2 py-1 rounded-full font-bold shrink-0"
+              style={{ background: 'var(--lumo-profile-chip-bg)', color: 'var(--lumo-profile-chip-text)' }}
+            >
+              {item.matchScore}%
+            </span>
+          )}
           <TagChips tags={tags} className="max-w-[140px]" />
           {onToggleFavorite && (
             <button

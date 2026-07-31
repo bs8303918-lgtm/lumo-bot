@@ -11,8 +11,10 @@ import PricingView from './components/PricingView';
 import ReviewsView from './components/ReviewsView';
 import TeamFinderView from './components/TeamFinderView';
 import TrackerView from './components/TrackerView';
+import OnboardingWizard, { isOnboardingDone } from './components/OnboardingWizard';
 import { resolvePlans } from './utils/pricing';
 import { apiFetch, getTelegram, haptic, initTelegramApp } from './api';
+import { pullSavedFromServer } from './utils/localFeatures';
 
 function ViewTabs({ active, onChange, isAdmin }) {
   // Price is a separate Mini App entry (?view=pricing) — not mixed with bot features.
@@ -89,6 +91,7 @@ export default function App() {
     pricingOnlyFromUrl() ? 'subscription' : null,
   );
   const [authError, setAuthError] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const inTelegram = Boolean(getTelegram()?.initData);
   const botUsername = meta?.botUsername || 'LumoAI1bot';
 
@@ -97,6 +100,8 @@ export default function App() {
       setAuthError(null);
       const me = await apiFetch('/users/me');
       setProfile(me);
+      if (!isOnboardingDone() && !me?.hasInterest) setShowOnboarding(true);
+      pullSavedFromServer().catch(() => {});
     } catch (err) {
       setAuthError(err.message);
     }
@@ -161,6 +166,22 @@ export default function App() {
     haptic('light');
     setSelected(item);
   };
+
+  if (showOnboarding && !pricingOnly) {
+    return (
+      <>
+        <OnboardingWizard
+          onFinish={() => {
+            setShowOnboarding(false);
+            loadProfile();
+          }}
+          onSkip={() => setShowOnboarding(false)}
+          onOpenItem={openItem}
+        />
+        <DetailModal item={selected} profile={profile} onClose={() => setSelected(null)} />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--lumo-bg)', color: 'var(--lumo-text)' }}>
@@ -286,7 +307,7 @@ export default function App() {
         </p>
       </footer>
 
-      {!pricingOnly && <DetailModal item={selected} onClose={() => setSelected(null)} />}
+      {!pricingOnly && <DetailModal item={selected} profile={profile} onClose={() => setSelected(null)} />}
     </div>
   );
 }
