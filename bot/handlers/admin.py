@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import AdminFilter
 from bot.welcome import send_welcome
-from bot.webapp_setup import reset_menu_cache, setup_telegram_webapp, sync_user_menu_button
+from bot.webapp_setup import (
+    reset_menu_cache,
+    resync_menu_button_for_all_users,
+    setup_telegram_webapp,
+    sync_user_menu_button,
+)
 from db.repositories.admin_analytics import AdminAnalyticsRepository
 from db.repositories.channels import ChannelRepository
 from db.repositories.opportunity_catalog import OpportunityCatalogRepository
@@ -455,9 +460,21 @@ async def cmd_sync_webapp(message: Message) -> None:
     await sync_user_menu_button(message.bot, message.chat.id, force=True)
 
     await message.answer(
+        f"⏳ Обновляю кнопку Open у всех пользователей на <code>{url}</code>…",
+        parse_mode="HTML",
+    )
+    stats = await resync_menu_button_for_all_users(message.bot)
+
+    await message.answer(
         "✅ Menu Button обновлён\n\n"
         f"URL: <code>{url}</code>\n\n"
-        "Если в Telegram всё ещё Error 1033 на старый адрес:\n"
+        f"Всего пользователей: {stats['target']}\n"
+        f"Обновлено: {stats['synced']}\n"
+        f"Недоступны (заблокировали бота): {stats['unreachable']}\n"
+        f"Ошибок: {stats['failed']}\n\n"
+        "Каждый существующий чат хранит свою кнопку Open отдельно — Telegram "
+        "не подтягивает новый URL сам, пока не переслать её явно (что и "
+        "сделала эта команда). Если у кого-то всё ещё старый адрес:\n"
         "1. Отправь /app и нажми кнопку <b>Open Mini App</b> в сообщении\n"
         "2. BotFather → твой бот → Bot Settings → Menu Button → "
         "Open Web App → вставь URL выше\n"
