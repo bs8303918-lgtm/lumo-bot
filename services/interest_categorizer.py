@@ -10,7 +10,12 @@ from config import get_settings
 from llm.client import LLMClient
 from services.interest_admin_review import get_approved_domains
 from services.interest_matcher import OPPORTUNITY_TYPES, is_standard_category
-from services.interest_profile import InterestProfile, apply_interest_defaults, parse_interest_profile
+from services.interest_profile import (
+    InterestProfile,
+    apply_interest_defaults,
+    is_vague_or_unsure_interest,
+    parse_interest_profile,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +33,13 @@ async def _approved_domains_cached() -> list[str]:
     return domains
 
 
-def _needs_llm_categorization(profile: InterestProfile) -> bool:
-    """LLM если мало типов, размытый профиль или есть специальность без типов."""
+def _needs_llm_categorization(profile: InterestProfile, text: str | None = None) -> bool:
+    """LLM если запрос размытый, непонятный или локально распознан плохо."""
+    cleaned = (text or "").strip()
+    if cleaned and is_vague_or_unsure_interest(cleaned):
+        return True
+    if cleaned and not profile.types and not profile.domains and not profile.unknown_domains:
+        return True
     if profile.domains and len(profile.types) < 2:
         return True
     if profile.unknown_domains and not profile.types:
@@ -92,7 +102,7 @@ async def categorize_interest(
         not skip_llm
         and settings.llm_interest_categorization
         and settings.llm_user_configured
-        and _needs_llm_categorization(profile)
+        and _needs_llm_categorization(profile, text)
     ):
         try:
             llm_cats, llm_domains, _raw = await LLMClient().extract_interest_categories(text)

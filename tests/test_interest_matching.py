@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from services.interest_categorizer import _needs_llm_categorization
 from services.interest_matcher import relevance_score, resolve_catalog_filter
 from services.interest_profile import (
     InterestProfile,
@@ -68,3 +69,11 @@ def test_relevance_penalizes_unrelated_startup_for_biology():
 def test_parse_profile_keeps_specialty_domains():
     profile = parse_interest_profile("Студентка, увлекаюсь астрофизикой, ищу стипендии")
     assert "астрофизика" in profile.domains or "астрофизика" in profile.all_categories()
+
+
+def test_needs_llm_for_vague_or_unrecognized_interests():
+    vague = parse_interest_profile("что-то интересное, посоветуй", apply_defaults=False)
+    assert _needs_llm_categorization(vague, "что-то интересное, посоветуй") is True
+
+    unrecognized = parse_interest_profile("примерно про IT и биологию", apply_defaults=False)
+    assert _needs_llm_categorization(unrecognized, "примерно про IT и биологию") is True
