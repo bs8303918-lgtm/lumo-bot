@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from analytics.event_types import AI_SEARCH, CATALOG_VIEW, INTEREST_SET
-from api.auth import get_current_user
+from api.auth import get_current_user, get_current_user_optional
 from api.deps import get_db
 from bot.handlers.interests import INTEREST_MIN_LENGTH
 from config import get_settings
@@ -432,7 +432,7 @@ async def lumo_opportunities(
     limit: int = Query(default=20, ge=1, le=50),
     page_size: int | None = Query(default=None, ge=1, le=50),
     offset: int = Query(default=0, ge=0),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_optional),
     session: AsyncSession = Depends(get_db),
     room_student_id: int | None = Depends(read_room_student_id_header),
 ) -> dict:

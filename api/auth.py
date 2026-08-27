@@ -80,6 +80,41 @@ async def get_current_user(
     )
 
 
+GUEST_TELEGRAM_ID = -1
+
+
+async def get_current_user_optional(
+    authorization: str | None = Header(default=None),
+    x_telegram_init_data: str | None = Header(default=None, alias="X-Telegram-Init-Data"),
+    x_telegram_login_data: str | None = Header(default=None, alias="X-Telegram-Login-Data"),
+    x_google_id_token: str | None = Header(default=None, alias="X-Google-Id-Token"),
+    x_dev_telegram_id: int | None = Header(default=None, alias="X-Dev-Telegram-Id"),
+    session: AsyncSession = Depends(get_db),
+) -> User:
+    """Like get_current_user, but a request with no credentials at all gets a shared
+    read-only guest user instead of a 401 — for public catalog browsing. A credential
+    that IS supplied still has to be valid; this never masks a bad/expired token."""
+    settings = get_settings()
+    has_credentials = bool(
+        x_telegram_init_data
+        or x_telegram_login_data
+        or x_google_id_token
+        or (authorization and authorization.lower().startswith("bearer "))
+        or (settings.api_allow_dev_auth and x_dev_telegram_id)
+    )
+    if has_credentials:
+        return await get_current_user(
+            authorization=authorization,
+            x_telegram_init_data=x_telegram_init_data,
+            x_telegram_login_data=x_telegram_login_data,
+            x_google_id_token=x_google_id_token,
+            x_dev_telegram_id=x_dev_telegram_id,
+            session=session,
+        )
+    user, _ = await UserRepository(session).get_or_create(GUEST_TELEGRAM_ID, "guest")
+    return user
+
+
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     settings = get_settings()
     if not settings.user_is_admin(user.telegram_id, user.email):
