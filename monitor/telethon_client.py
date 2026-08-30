@@ -4,12 +4,16 @@ import sqlite3
 from pathlib import Path
 
 from telethon import TelegramClient
-from telethon.errors import AuthKeyUnregisteredError, SessionPasswordNeededError
+from telethon.errors import AuthKeyDuplicatedError, AuthKeyUnregisteredError, SessionPasswordNeededError
 from telethon.sessions import StringSession
 
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Both mean the session is permanently dead until re-login: Unregistered = revoked/never valid,
+# Duplicated = Telegram detected the same auth key used from two IPs at once and killed it.
+INVALID_SESSION_ERRORS = (AuthKeyUnregisteredError, AuthKeyDuplicatedError)
 
 _client: TelegramClient | None = None
 
@@ -111,9 +115,10 @@ async def ensure_telethon_connected() -> TelegramClient:
                 "Telethon не залогинен. Локально: python scripts/telethon_login_qr.py && "
                 "python scripts/export_telethon_session.py → TELETHON_SESSION_STRING в Railway"
             )
-    except AuthKeyUnregisteredError:
+    except INVALID_SESSION_ERRORS as exc:
         logger.error(
-            "Сессия Telethon повреждена. Сгенерируй новую: telethon_login_qr.py → export_telethon_session.py"
+            "Сессия Telethon повреждена (%s). Сгенерируй новую: telethon_login_qr.py → export_telethon_session.py",
+            type(exc).__name__,
         )
         reset_client()
         raise
@@ -126,7 +131,7 @@ async def telethon_is_authorized() -> bool:
         if not client.is_connected():
             await client.connect()
         return await client.is_user_authorized()
-    except AuthKeyUnregisteredError:
+    except INVALID_SESSION_ERRORS:
         return False
     except Exception:
         return False
@@ -140,7 +145,7 @@ async def require_authorized_client() -> TelegramClient | None:
         client = await ensure_telethon_connected()
         if await client.is_user_authorized():
             return client
-    except (AuthKeyUnregisteredError, TelethonCredentialsMissingError):
+    except (*INVALID_SESSION_ERRORS, TelethonCredentialsMissingError):
         pass
     except (sqlite3.OperationalError, OSError, RuntimeError) as exc:
         logger.warning("Telethon unavailable: %s", exc)

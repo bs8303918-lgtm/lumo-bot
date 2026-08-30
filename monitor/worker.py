@@ -13,7 +13,7 @@ from db.repositories.channels import ChannelRepository
 from db.repositories.users import EventRepository, MessageRepository, SystemStateRepository
 from logging_setup import log_error
 from monitor.channel_resolver import ChannelResolver
-from monitor.telethon_client import ensure_telethon_connected
+from monitor.telethon_client import INVALID_SESSION_ERRORS, ensure_telethon_connected, reset_client
 from services.admin_notify import notify_admin
 from services.channel_service import sync_seed_channels
 
@@ -71,6 +71,24 @@ class MonitorWorker:
         for channel_id, channel_identifier in channel_jobs:
             try:
                 await self._process_channel(client, resolver, channel_id)
+            except INVALID_SESSION_ERRORS as exc:
+                log_error(
+                    logger,
+                    "monitor_worker",
+                    exc,
+                    {"channel": channel_identifier, "reason": type(exc).__name__},
+                )
+                reset_client()
+                async with async_session_factory() as session:
+                    await SystemStateRepository(session).set("telethon_session_ok", "false")
+                    await session.commit()
+                await notify_admin(
+                    "⚠️ Lumo: Telethon-сессия аннулирована Telegram "
+                    f"({type(exc).__name__}) — мониторинг остановлен.\n"
+                    "На Railway Console: python scripts/reset_telethon_session.py, затем "
+                    "scripts/telethon_login_qr.py и обнови TELETHON_SESSION_STRING."
+                )
+                return False
             except FloodWaitError as exc:
                 log_error(
                     logger,
