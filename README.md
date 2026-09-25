@@ -5,18 +5,14 @@
 ## Демо
 
 - Видео (1–2 мин): TODO — ссылка
-- Бот: [@LumoAI1bot](https://t.me/LumoAI1bot) (ссылка из [`сайт/frontend/src/constants.js`](сайт/frontend/src/constants.js))
-- Mini App: <https://lumo-bot.vercel.app> ([`vercel.json`](vercel.json), [`telegram-site/README.md`](telegram-site/README.md))
+- Бот: [@LumoAI1bot](https://t.me/LumoAI1bot) 
+- Сайт: lumoai.net (https://lumoai.net/)
 
 ## Цифры
-
-Замер: TODO — дата. База (Supabase, проект `Lumo`) на момент подготовки README стоит на паузе, запросы не выполнялись.
 
 | Показатель | Значение |
 |---|---|
 | Пользователи (Telegram) | TODO |
-| Возможности в каталоге (активные) | TODO |
-| Источники (Telegram-каналы) | TODO |
 
 Кого считаем пользователем: строку в таблице `users` с `telegram_id > 0` — это человек, который запустил бота или открыл Mini App через Telegram ([`db/models.py`](db/models.py), [`api/auth.py`](api/auth.py)). Аккаунты с сайта (Google или email) получают синтетический отрицательный `telegram_id` ([`services/google_auth.py`](services/google_auth.py), [`services/web_auth.py`](services/web_auth.py)) и считаются отдельно.
 
