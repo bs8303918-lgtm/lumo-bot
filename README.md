@@ -11,7 +11,7 @@
 
 | Показатель | Значение |
 |---|---|
-| Пользователи (Telegram) | TODO |
+| Пользователи (Telegram) | 450 |
 
 Кого считаем пользователем: строку в таблице `users` с `telegram_id > 0` — это человек, который запустил бота или открыл Mini App через Telegram ([`db/models.py`](db/models.py), [`api/auth.py`](api/auth.py)). Аккаунты с сайта (Google или email) получают синтетический отрицательный `telegram_id` ([`services/google_auth.py`](services/google_auth.py), [`services/web_auth.py`](services/web_auth.py)) и считаются отдельно.
 
