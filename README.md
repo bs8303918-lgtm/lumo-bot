@@ -4,7 +4,7 @@
 
 ## Демо
 
-- Бот: [@LumoAI1bot](https://t.me/LumoAI1bot) 
+- Бот telegram: [@LumoAI1bot](https://t.me/LumoAI1bot) 
 - Сайт: lumoai.net (https://lumoai.net/)
 
 ## Цифры
