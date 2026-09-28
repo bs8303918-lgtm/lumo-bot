@@ -8,8 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# Retry flaky PyPI downloads instead of failing the whole build
+ENV PIP_DEFAULT_TIMEOUT=100 \
+    PIP_RETRIES=10 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 # Cache bust: 2026-06-28 pgbouncer/asyncpg fix
-RUN pip install --no-cache-dir -r requirements.txt \
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir --force-reinstall "asyncpg==0.30.0" \
     && python -c "import asyncpg, sqlalchemy; print('asyncpg', asyncpg.__version__, 'sqlalchemy', sqlalchemy.__version__)"
 
