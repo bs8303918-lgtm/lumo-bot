@@ -1,0 +1,295 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#1C1A19}
+  canvas{display:block}
+  #ui{position:absolute;inset:0;pointer-events:none;font-family:"Inter",sans-serif}
+  .badge{position:absolute;left:72px;top:150px;display:flex;align-items:center;gap:18px}
+  .pill{background:#F29A2E;color:#1C1A19;font:800 34px Inter;padding:10px 22px;border-radius:29px}
+  .series{color:#F5F0E8;font:600 28px Inter;-webkit-text-stroke:6px #1C1A19;paint-order:stroke fill}
+  .cap{position:absolute;left:0;right:0;top:1344px;transform:translateY(-50%);text-align:center;
+       font:800 92px Inter;color:#F29A2E;-webkit-text-stroke:14px #1C1A19;paint-order:stroke fill}
+  .kw{position:absolute;left:0;right:0;top:330px;text-align:center;font:900 120px "Inter Display";
+      color:#1C1A19;letter-spacing:-2px}
+  .kw span{background:#F29A2E;padding:0 24px;border-radius:10px;box-decoration-break:clone}
+  .tag{position:absolute;left:0;right:0;top:1460px;text-align:center;color:#F5F0E8;
+       font:700 30px "JetBrains Mono";opacity:.85;-webkit-text-stroke:5px #1C1A19;paint-order:stroke fill}
+</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+</head><body>
+<div id="ui">
+  <div class="badge"><div class="pill">DAY 1</div><div class="series">Economics in 60s</div></div>
+  <div class="kw" id="kw"></div>
+  <div class="cap" id="cap"></div>
+  <div class="tag" id="tag"></div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+
+const W = 1080, H = 1920;
+const q = new URLSearchParams(location.search);
+const STYLE = q.get('style') || 'clay';
+const MOOD = q.get('mood') || 'setup';
+
+// ---------------- MOLNecon palette (same tokens as molnstyle.py)
+const C = {
+  ink: 0x1C1A19, paper: 0xF5F0E8, orange: 0xF29A2E, orangeDeep: 0xC9731A,
+  highlight: 0xFFD682, cream: 0xFCECD2, night: 0x182242, nightDeep: 0x0F152C,
+  violet: 0x4E4280, sky: 0x5896DC, green: 0x3FB37F, red: 0xE4574C, skin: 0xF6C9A0,
+};
+
+// ---------------- per-style recipe
+const STYLES = {
+  clay: {      // 3D clay stickman: matte, soft, chunky ink body
+    label: '1 · CLAY STICKMAN', mat: 'standard', rough: 0.95, outline: 0, seg: 48,
+    body: 0x2F2A28, head: 0x2F2A28, eyes: 'dots-white', hair: null,
+    prop: { headR: 0.62, torso: 0.9, limbR: 0.11, upper: 0.62, lower: 0.6 },
+  },
+  toon: {      // anime / comic cel shading with ink outlines (like the reference channel)
+    label: '2 · TOON INK (ANIME)', mat: 'toon', outline: 0.035, seg: 40,
+    body: 0x2B3A67, head: C.skin, eyes: 'anime', hair: 0x1C1A19,
+    prop: { headR: 0.5, torso: 1.0, limbR: 0.075, upper: 0.66, lower: 0.64 },
+  },
+  lowpoly: {   // faceted papercraft diorama
+    label: '3 · LOW-POLY PAPER', mat: 'flat', outline: 0, seg: 7,
+    body: 0x3FB37F, head: C.skin, eyes: 'dots', hair: 0x6B3E26,
+    prop: { headR: 0.52, torso: 0.95, limbR: 0.1, upper: 0.62, lower: 0.62 },
+  },
+  vinyl: {     // glossy collectible toy, chibi proportions
+    label: '4 · VINYL TOY', mat: 'gloss', outline: 0, seg: 64,
+    body: C.orange, head: C.paper, eyes: 'big', hair: null,
+    prop: { headR: 0.78, torso: 0.75, limbR: 0.16, upper: 0.42, lower: 0.42 },
+  },
+  stick: {     // flat ink stick figure standing in a real 3D world (2D-in-3D, like the reference)
+    label: '5 · INK STICKMAN IN 3D', mat: 'toon', outline: 0.03, seg: 40,
+    body: 0x1C1A19, head: C.paper, eyes: 'dots', hair: null, flat: true,
+    prop: { headR: 0.5, torso: 1.0, limbR: 0.05, upper: 0.66, lower: 0.66 },
+  },
+};
+const S = STYLES[STYLE];
+
+// ---------------- renderer
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = MOOD === 'explain' ? 1.0 : 1.15;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 200);
+
+// background: vertical gradient by mood (no pure black)
+function gradientTex(top, bottom) {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, '#' + top.toString(16).padStart(6, '0'));
+  gr.addColorStop(1, '#' + bottom.toString(16).padStart(6, '0'));
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+scene.background = MOOD === 'explain' ? gradientTex(C.night, C.nightDeep) : gradientTex(0xFFE3B8, 0xF4B979);
+
+// ---------------- lights: warm key, cool violet fill (shadows go blue/violet, never brown)
+const key = new THREE.DirectionalLight(MOOD === 'explain' ? 0x9DB8FF : 0xFFE2B0, MOOD === 'explain' ? 2.2 : 3.2);
+key.position.set(-6, 10, 7);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 40 });
+key.shadow.radius = 6; key.shadow.bias = -0.0005; key.shadow.normalBias = 0.04;
+scene.add(key);
+scene.add(new THREE.HemisphereLight(MOOD === 'explain' ? 0x5070C0 : 0xFFF1DC, C.violet, MOOD === 'explain' ? 1.0 : 1.2));
+const rim = new THREE.DirectionalLight(MOOD === 'explain' ? C.orange : 0x9FB6FF, 1.4);
+rim.position.set(6, 4, -6); scene.add(rim);
+
+// ---------------- materials
+const toonRamp = (() => {
+  const d = new Uint8Array([70, 160, 255]);
+  const t = new THREE.DataTexture(d, 3, 1, THREE.RedFormat);
+  t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
+})();
+function mat(color, opts = {}) {
+  switch (S.mat) {
+    case 'toon': return new THREE.MeshToonMaterial({ color, gradientMap: toonRamp, ...opts });
+    case 'flat': return new THREE.MeshStandardMaterial({ color, roughness: 0.85, flatShading: true, ...opts });
+    case 'gloss': return new THREE.MeshPhysicalMaterial({ color, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08, ...opts });
+    default: return new THREE.MeshStandardMaterial({ color, roughness: S.rough ?? 0.9, ...opts });
+  }
+}
+const outlineMat = new THREE.MeshBasicMaterial({ color: 0x15131A, side: THREE.BackSide });
+
+function add(parent, geo, color, pos = [0, 0, 0], opts = {}) {
+  const m = new THREE.Mesh(geo, opts.material || mat(color, opts.m || {}));
+  m.position.set(...pos);
+  m.castShadow = true; m.receiveShadow = true;
+  parent.add(m);
+  if (S.outline && !opts.noOutline) {
+    const o = new THREE.Mesh(geo, outlineMat);
+    const s = 1 + S.outline / Math.max(0.15, opts.size || 0.5);
+    o.scale.setScalar(Math.min(s, 1.25));
+    m.add(o);
+  }
+  return m;
+}
+const seg = S.seg;
+
+// ---------------- the mascot "Moln"
+function limb(parent, len, r, color) {
+  const g = new THREE.Group(); parent.add(g);
+  add(g, new THREE.CapsuleGeometry(r, len, Math.max(3, seg / 8), seg), color, [0, -len / 2, 0], { size: r * 3 });
+  const end = new THREE.Group(); end.position.y = -len; g.add(end);
+  return [g, end];
+}
+function buildMoln() {
+  const P = S.prop, root = new THREE.Group();
+  const legLen = P.upper + P.lower;
+  const hipY = legLen + P.limbR * 2;
+  // torso
+  const torso = new THREE.Group(); torso.position.y = hipY; root.add(torso);
+  const torsoR = S.flat ? P.limbR : P.limbR * 2.6;
+  add(torso, new THREE.CapsuleGeometry(torsoR, P.torso, 6, seg), S.body, [0, P.torso / 2 + torsoR * 0.3, 0], { size: torsoR * 2 });
+  // head
+  const headY = P.torso + torsoR + P.headR * 0.95;
+  const head = new THREE.Group(); head.position.y = headY; torso.add(head);
+  add(head, new THREE.SphereGeometry(P.headR, seg, Math.max(5, seg * 0.75)), S.head, [0, 0, 0], { size: P.headR * 2 });
+  // eyes
+  const eyeZ = P.headR * 0.9, ex = P.headR * 0.36, ey = P.headR * 0.08;
+  const eye = (x) => {
+    if (S.eyes === 'anime') {
+      add(head, new THREE.SphereGeometry(P.headR * 0.2, 24, 16), 0xffffff, [x, ey, eyeZ - 0.06], { noOutline: true, material: new THREE.MeshBasicMaterial({ color: 0xffffff }) }).scale.set(0.8, 1.25, 0.4);
+      add(head, new THREE.SphereGeometry(P.headR * 0.14, 24, 16), 0x2A1E4A, [x, ey - 0.01, eyeZ + 0.01], { noOutline: true, material: new THREE.MeshBasicMaterial({ color: 0x2A1E4A }) }).scale.set(0.8, 1.2, 0.4);
+      add(head, new THREE.SphereGeometry(P.headR * 0.05, 12, 8), 0xffffff, [x + 0.025, ey + 0.05, eyeZ + 0.05], { noOutline: true, material: new THREE.MeshBasicMaterial({ color: 0xffffff }) });
+    } else if (S.eyes === 'dots-white') {
+      add(head, new THREE.SphereGeometry(P.headR * 0.17, 24, 16), 0xffffff, [x, ey, eyeZ - 0.04], { noOutline: true, material: new THREE.MeshBasicMaterial({ color: C.paper }) }).scale.set(0.85, 1.15, 0.5);
+      add(head, new THREE.SphereGeometry(P.headR * 0.08, 16, 12), C.ink, [x + 0.02, ey, eyeZ + 0.02], { noOutline: true, material: new THREE.MeshBasicMaterial({ color: C.ink }) });
+    } else if (S.eyes === 'big') {
+      add(head, new THREE.SphereGeometry(P.headR * 0.15, 32, 16), C.ink, [x, ey, eyeZ], { noOutline: true, m: { roughness: 0.1 } }).scale.set(0.8, 1.1, 0.5);
+    } else {
+      add(head, new THREE.SphereGeometry(P.headR * 0.09, 16, 12), C.ink, [x, ey, eyeZ + 0.02], { noOutline: true, material: new THREE.MeshBasicMaterial({ color: C.ink }) }).scale.set(0.8, 1.2, 0.6);
+    }
+  };
+  eye(-ex); eye(ex);
+  // smile
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(P.headR * 0.22, P.headR * 0.035, 8, 24, Math.PI),
+    new THREE.MeshBasicMaterial({ color: S.head === S.body && S.eyes === 'dots-white' ? C.paper : C.ink }));
+  smile.position.set(0, -P.headR * 0.28, P.headR * 0.93); smile.rotation.z = Math.PI; head.add(smile);
+  // cheeks (warm)
+  if (S.head === C.skin || S.mat === 'gloss') for (const x of [-1, 1]) {
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(P.headR * 0.11, 16, 8), new THREE.MeshBasicMaterial({ color: 0xF59A8A, transparent: true, opacity: 0.7 }));
+    ch.position.set(x * P.headR * 0.55, -P.headR * 0.17, P.headR * 0.8); ch.scale.z = 0.3; head.add(ch);
+  }
+  // hair
+  if (S.hair) {
+    const hairG = new THREE.Group(); head.add(hairG);
+    add(hairG, new THREE.SphereGeometry(P.headR * 1.04, seg, seg / 2, 0, Math.PI * 2, 0, Math.PI * 0.45), S.hair, [0, 0.02, -0.02], { size: P.headR * 2 });
+    if (S.mat === 'toon') for (let i = -2; i <= 2; i++) {
+      const sp = add(hairG, new THREE.ConeGeometry(P.headR * 0.22, P.headR * 0.55, 6), S.hair, [i * P.headR * 0.28, P.headR * 0.78, P.headR * 0.5], { size: 0.3 });
+      sp.rotation.set(1.9, 0, -i * 0.25);
+    }
+  }
+  // the signature: orange scarf + tail
+  const neckY = P.torso + torsoR * 0.9;
+  const scarfR = Math.max(torsoR * 1.05, 0.13);
+  add(torso, new THREE.TorusGeometry(scarfR, Math.max(0.07, scarfR * 0.32), 12, seg), C.orange, [0, neckY, 0], { size: 0.4 }).rotation.x = Math.PI / 2;
+  const tail = add(torso, new THREE.BoxGeometry(0.16, 0.5, 0.07), C.orange, [scarfR * 0.6, neckY - 0.3, scarfR * 0.75], { size: 0.3 });
+  tail.rotation.z = 0.25;
+  // arms: left on hip, right raised holding a coin
+  const shoulderY = P.torso + torsoR * 0.1, sx = torsoR + P.limbR * 0.6;
+  const [la, laEnd] = limb(torso, P.upper, P.limbR, S.body); la.position.set(-sx, shoulderY, 0); la.rotation.z = -0.55;
+  const [la2] = limb(laEnd, P.lower, P.limbR, S.body); la2.rotation.z = 1.5;
+  const [ra, raEnd] = limb(torso, P.upper, P.limbR, S.body); ra.position.set(sx, shoulderY, 0); ra.rotation.z = 2.3;
+  const [ra2, ra2End] = limb(raEnd, P.lower, P.limbR, S.body); ra2.rotation.z = -0.5;
+  for (const e of [laEnd, ra2End]) add(e, new THREE.SphereGeometry(P.limbR * 1.5, seg / 2, seg / 2), S.flat ? C.ink : S.head, [0, 0, 0], { size: 0.2 });
+  const coin = makeCoin(0.42); coin.position.set(0, -0.35, 0.1); coin.rotation.set(Math.PI / 2, 0, 0.3); ra2End.add(coin);
+  // legs
+  const hx = torsoR * 0.55;
+  for (const [x, rz] of [[-hx, -0.12], [hx, 0.12]]) {
+    const [l, lEnd] = limb(root, P.upper, P.limbR * 1.1, S.body); l.position.set(x, hipY, 0); l.rotation.z = rz;
+    const [l2, l2End] = limb(lEnd, P.lower, P.limbR * 1.1, S.body); l2.rotation.z = -rz * 0.5;
+    add(l2End, new THREE.CapsuleGeometry(P.limbR * 1.4, P.limbR * 2, 4, seg / 2), S.flat ? C.ink : C.ink, [0, 0, P.limbR * 1.4], { size: 0.25 }).rotation.x = Math.PI / 2;
+  }
+  root.rotation.y = 0.15;
+  return root;
+}
+function makeCoin(r) {
+  const g = new THREE.Group();
+  add(g, new THREE.CylinderGeometry(r, r, r * 0.22, Math.max(seg, 12)), C.highlight, [0, 0, 0], { size: r * 2, m: S.mat === 'gloss' ? { metalness: 0.4 } : {} });
+  add(g, new THREE.CylinderGeometry(r * 0.72, r * 0.72, r * 0.25, Math.max(seg, 12)), 0xF2B94A, [0, 0, 0], { noOutline: true });
+  return g;
+}
+
+// ---------------- world: rounded island + coin-stack bar chart + clouds
+const world = new THREE.Group(); scene.add(world);
+add(world, new THREE.CylinderGeometry(4.2, 4.0, 0.6, Math.max(seg, 10)), MOOD === 'explain' ? 0x2D3B6B : 0xFFF2DC, [0, -0.3, 0], { size: 8 });
+add(world, new THREE.CylinderGeometry(4.25, 4.25, 0.12, Math.max(seg, 10)), C.orange, [0, -0.55, 0], { size: 8 });
+
+const moln = buildMoln(); moln.position.set(-0.35, 0, 1.3); world.add(moln);
+
+const heights = [2, 4, 7, 11];
+heights.forEach((n, i) => {
+  const stack = new THREE.Group(); stack.position.set(-1.5 + i * 1.0, 0, -1.0 - i * 0.15); world.add(stack);
+  for (let k = 0; k < n; k++) {
+    const c = makeCoin(0.36); c.position.y = 0.05 + k * 0.17; c.rotation.y = k * 0.7; stack.add(c);
+    c.position.x = Math.sin(k * 1.7) * 0.03;
+  }
+});
+// green up-arrow over the tallest stack
+const arrowShape = new THREE.Shape();
+arrowShape.moveTo(-0.12, 0); arrowShape.lineTo(0.12, 0); arrowShape.lineTo(0.12, 0.7); arrowShape.lineTo(0.32, 0.7);
+arrowShape.lineTo(0, 1.1); arrowShape.lineTo(-0.32, 0.7); arrowShape.lineTo(-0.12, 0.7); arrowShape.lineTo(-0.12, 0);
+const arrow = add(world, new THREE.ExtrudeGeometry(arrowShape, { depth: 0.18, bevelEnabled: S.mat !== 'flat', bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 3 }), C.green, [1.55, 2.25, -1.6], { size: 0.6 });
+arrow.rotation.set(0, -0.3, -0.25);
+
+// price tag sign (wood post + orange tag)
+add(world, new THREE.BoxGeometry(0.1, 1.4, 0.1), 0x8A5A3B, [-2.1, 0.7, 0.2], { size: 0.2 });
+const sign = add(world, new THREE.BoxGeometry(1.0, 0.6, 0.08), C.orange, [-2.1, 1.45, 0.25], { size: 0.8 });
+sign.rotation.z = -0.08;
+// "$" on the sign: canvas texture decal
+{
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 160;
+  const g = cv.getContext('2d'); g.fillStyle = '#F29A2E'; g.fillRect(0, 0, 256, 160);
+  g.fillStyle = '#1C1A19'; g.font = '900 120px Inter'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', 128, 86);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(0.98, 0.58), new THREE.MeshBasicMaterial({ map: t }));
+  p.position.z = 0.045; sign.add(p);
+}
+// small trees
+for (const [x, z, s] of [[2.4, 0.6, 0.9], [-3.0, -1.6, 1.2], [3.0, -2.2, 1.1]]) {
+  add(world, new THREE.CylinderGeometry(0.07 * s, 0.09 * s, 0.6 * s, 8), 0x7A4E33, [x, 0.3 * s, z], { size: 0.2 });
+  add(world, new THREE.IcosahedronGeometry(0.5 * s, S.mat === 'flat' ? 0 : 2), MOOD === 'explain' ? 0x2E6E6A : C.green, [x, 0.9 * s, z], { size: s });
+}
+// cartoon clouds (flattened spheres)
+function cloud(x, y, z, s) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(s); scene.add(g);
+  for (const [dx, dy, r] of [[0, 0, 1], [1.1, -0.2, 0.75], [-1.1, -0.25, 0.7], [0.5, 0.45, 0.65]]) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, S.mat === 'flat' ? 6 : 24, S.mat === 'flat' ? 4 : 16),
+      new THREE.MeshLambertMaterial({ color: MOOD === 'explain' ? 0x2F3E78 : 0xFFF6EA, emissive: MOOD === 'explain' ? 0x141C3A : 0xFFE6C4, emissiveIntensity: 0.55, flatShading: S.mat === 'flat' }));
+    m.position.set(dx, dy, 0); m.scale.z = 0.5; g.add(m);
+  }
+}
+cloud(-4.2, 4.6, -12, 0.9); cloud(4.8, 6.2, -16, 1.2); cloud(5.5, 1.4, -18, 1.3);
+if (MOOD === 'explain') { // stars
+  const sg = new THREE.BufferGeometry(); const pts = [];
+  for (let i = 0; i < 300; i++) pts.push((Math.random() - 0.5) * 80, 6 + Math.random() * 30, -30 - Math.random() * 10);
+  sg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: C.highlight, size: 0.18 })));
+}
+
+// ---------------- camera: subject sits in the picture zone (288..1250 px)
+camera.fov = 34; camera.updateProjectionMatrix();
+camera.position.set(0.6, 3.0, 13.5);
+camera.lookAt(0.1, 0.55, 0);
+
+// overlay text
+const KW = { setup: 'WHO PAYS?', explain: 'YOU SEE,' };
+document.getElementById('kw').innerHTML = q.get('kw') !== null ? q.get('kw') : '';
+document.getElementById('cap').textContent = q.get('cap') || 'MONEY';
+document.getElementById('tag').textContent = q.get('label') === '0' ? '' : S.label;
+
+renderer.render(scene, camera);
+document.fonts.ready.then(() => { renderer.render(scene, camera); window.__done = true; });
+</script>
+</body></html>
